@@ -3,7 +3,7 @@ uvicorn
 yt-dlp
 pedalboard
 pydub
-librosa
 moviepy
 syrics
 python-multipart
+openai-whisper

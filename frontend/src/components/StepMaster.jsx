@@ -1,5 +1,14 @@
 import { useState } from 'react'
 
+const STAGE_LABELS = {
+  starting: 'Starting...',
+  slowdown: 'Applying vinyl slowdown...',
+  '8d': 'Rendering 8D spatial panning...',
+  eq_reverb: 'Applying EQ & reverb...',
+  mastering: 'Mastering audio...',
+  done: 'Done!'
+}
+
 const PRESETS = [
   { 
     name: 'Classic Slowed+Reverb',
@@ -60,6 +69,8 @@ export default function StepMaster({
 }) {
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [activePreset, setActivePreset] = useState(null)
+  const [previewProgress, setPreviewProgress] = useState(0)
+  const [previewStage, setPreviewStage] = useState('')
 
   const applyPreset = (preset) => {
     const v = preset.values
@@ -71,7 +82,19 @@ export default function StepMaster({
 
   const handlePreview = async () => {
     setIsPreviewing(true)
+    setPreviewProgress(0)
+    setPreviewStage('starting')
     setStatus('Rendering full audio preview...')
+
+    const progressInterval = setInterval(async () => {
+      try {
+        const pRes = await fetch('http://127.0.0.1:8000/api/render-progress')
+        const pData = await pRes.json()
+        setPreviewProgress(pData.progress || 0)
+        setPreviewStage(pData.stage || '')
+      } catch (e) {}
+    }, 500)
+
     const formData = new FormData()
     formData.append('audio_path', audioPath)
     formData.append('speed', speed)
@@ -97,6 +120,7 @@ export default function StepMaster({
     } catch {
       setStatus('Failed to connect to backend.')
     }
+    clearInterval(progressInterval)
     setIsPreviewing(false)
   }
 
@@ -239,6 +263,15 @@ export default function StepMaster({
       >
         {isPreviewing ? 'Rendering Preview...' : '▶  Render Audio Preview'}
       </button>
+
+      {isPreviewing && (
+        <div className="render-progress">
+          <div className="progress-bar-bg">
+            <div className="progress-bar-fill" style={{width: `${previewProgress}%`, transition: 'width 0.3s ease'}}></div>
+          </div>
+          <div className="render-status">{STAGE_LABELS[previewStage] || 'Processing...'} {previewProgress}%</div>
+        </div>
+      )}
 
       {previewAudioUrl && (
         <div className="audio-player-card">

@@ -28,6 +28,7 @@ function App() {
   const [strokeWidth, setStrokeWidth] = useState(2)
   const [strokeColor, setStrokeColor] = useState('#000000')
   const [shadowOffset, setShadowOffset] = useState(4)
+  const [lyricStyle, setLyricStyle] = useState('single')
 
   // Audio mastering
   const [speed, setSpeed] = useState(1.0)
@@ -96,8 +97,9 @@ function App() {
           setStatus={setStatus}
         />
       case 3:
-        return <StepLyrics 
-          lyrics={lyrics} setLyrics={setLyrics} speed={speed} previewAudioUrl={previewAudioUrl} 
+        return <StepLyrics
+          lyrics={lyrics} setLyrics={setLyrics} speed={speed} previewAudioUrl={previewAudioUrl}
+          audioPath={audioPath}
           fontFamily={fontFamily} setFontFamily={setFontFamily}
           fontColor={fontColor} setFontColor={setFontColor}
           fontSize={fontSize} setFontSize={setFontSize}
@@ -107,10 +109,11 @@ function App() {
           strokeWidth={strokeWidth} setStrokeWidth={setStrokeWidth}
           strokeColor={strokeColor} setStrokeColor={setStrokeColor}
           shadowOffset={shadowOffset} setShadowOffset={setShadowOffset}
+          lyricStyle={lyricStyle} setLyricStyle={setLyricStyle}
           bgFile={bgFile}
         />
       case 4:
-        return <StepExport 
+        return <StepExport
           audioPath={audioPath} bgFile={bgFile} lyrics={lyrics} songTitle={songTitle}
           speed={speed} reverbRoom={reverbRoom} reverbMix={reverbMix}
           bassBoost={bassBoost} trebleBoost={trebleBoost} warmth={warmth}
@@ -118,6 +121,7 @@ function App() {
           fontFamily={fontFamily} fontColor={fontColor} fontSize={fontSize}
           posX={posX} posY={posY} textTransform={textTransform}
           strokeWidth={strokeWidth} strokeColor={strokeColor} shadowOffset={shadowOffset}
+          lyricStyle={lyricStyle}
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}

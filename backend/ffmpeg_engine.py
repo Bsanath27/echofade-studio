@@ -3,7 +3,7 @@ import subprocess
 import json
 import re
 
-def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_color, pos_x, pos_y, text_transform, stroke_width, stroke_color, shadow_offset, speed, duration, bg_width, bg_height):
+def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_color, pos_x, pos_y, text_transform, stroke_width, stroke_color, shadow_offset, speed, duration, bg_width, bg_height, lyric_style="single"):
     # Convert hex color (#RRGGBB) to ASS color (&HAABBGGRR)
     def hex_to_ass(hex_col, alpha="00"):
         hex_col = hex_col.lstrip('#')
@@ -54,29 +54,47 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
     lines.append("[Events]")
     lines.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
 
+    def transform(t):
+        return t.upper() if text_transform == "uppercase" else t
+
+    # Vertical offset between stack lines, scaled to the chosen font size
+    stack_offset = int(font_size * 1.4)
+    dim_font_size = max(1, int(font_size * 0.75))
+
     for i, line in enumerate(lyrics_data):
         start_time = line['time'] / speed
         end_time = lyrics_data[i+1]['time'] / speed if i < len(lyrics_data) - 1 else duration
-        
-        text = line['text']
-        if text_transform == "uppercase":
-            text = text.upper()
-            
+
+        text = transform(line['text'])
+
         ass_start = to_ass_time(start_time)
         ass_end = to_ass_time(end_time)
-        
-        # Override tags: pos(x,y) and fad(in,out)
+
+        # Current line: bright, centered, fades in/out (same in both styles)
         text_payload = f"{{\\pos({center_x},{center_y})\\fad(500,500)}}{text}"
         lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{text_payload}")
+
+        if lyric_style == "stack":
+            # Dim previous/next lines above & below, matching the live preview's
+            # 3-line karaoke stack. Always rendered in semi-transparent white,
+            # regardless of the user's chosen font color, mirroring the preview.
+            if i > 0:
+                prev_text = transform(lyrics_data[i-1]['text'])
+                prev_payload = f"{{\\pos({center_x},{center_y - stack_offset})\\alpha&H99&\\fs{dim_font_size}\\c&HFFFFFF&\\bord0\\shad0\\fad(500,500)}}{prev_text}"
+                lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{prev_payload}")
+            if i < len(lyrics_data) - 1:
+                next_text = transform(lyrics_data[i+1]['text'])
+                next_payload = f"{{\\pos({center_x},{center_y + stack_offset})\\alpha&H99&\\fs{dim_font_size}\\c&HFFFFFF&\\bord0\\shad0\\fad(500,500)}}{next_text}"
+                lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{next_payload}")
 
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, duration=0, speed=1.0, 
-                        font_family="Montserrat", font_color="#ffffff", pos_x=50, pos_y=50, 
-                        text_transform="uppercase", stroke_width=2, stroke_color="#000000", 
-                        shadow_offset=4, font_size=60, quality="final", enable_beat_sync=False, 
-                        progress_file=None):
+def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, duration=0, speed=1.0,
+                        font_family="Montserrat", font_color="#ffffff", pos_x=50, pos_y=50,
+                        text_transform="uppercase", stroke_width=2, stroke_color="#000000",
+                        shadow_offset=4, font_size=60, quality="final", lyric_style="single",
+                        progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
     
     # 1. Determine background properties
@@ -100,9 +118,9 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     # 3. Generate ASS Subtitles
     ass_path = os.path.join(os.path.dirname(output_path), "subtitles.ass")
     generate_ass_subtitles(
-        lyrics_data, ass_path, font_family, font_size, font_color, 
-        pos_x, pos_y, text_transform, stroke_width, stroke_color, 
-        shadow_offset, speed, duration, res_w, res_h
+        lyrics_data, ass_path, font_family, font_size, font_color,
+        pos_x, pos_y, text_transform, stroke_width, stroke_color,
+        shadow_offset, speed, duration, res_w, res_h, lyric_style
     )
 
     # 4. Construct FFmpeg Command
@@ -143,10 +161,11 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
         if match and progress_file:
             h, m, s = match.groups()
             current_time = int(h)*3600 + int(m)*60 + float(s)
-            percentage = min(int((current_time / duration) * 100), 100)
+            raw_percentage = min(int((current_time / duration) * 100), 100)
+            scaled = progress_start + int((raw_percentage / 100) * (progress_end - progress_start))
             try:
                 with open(progress_file, 'w') as f:
-                    json.dump({"progress": percentage}, f)
+                    json.dump({"progress": scaled, "stage": "rendering"}, f)
             except:
                 pass
                 

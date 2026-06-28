@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 from pedalboard import Pedalboard, Reverb, HighShelfFilter, LowShelfFilter, HighpassFilter, LowpassFilter, Distortion, Limiter, Gain
 from pedalboard.io import AudioFile
@@ -18,11 +19,28 @@ def apply_audio_effects(
     orbit_time: float = 20.0,
     orbit_ducking: float = 4.0,
     orbit_widening: float = 0.15,
-    preview: bool = False
+    preview: bool = False,
+    progress_file: str = None,
+    progress_start: int = 0,
+    progress_end: int = 100
 ) -> str:
     """
     Applies pure vinyl slowdown, true 360-degree 8D spatial panning, Abbey Road EQ'd reverb, saturation, EQ, and limiter.
     """
+    stages = ["slowdown"] + (["8d"] if enable_8d else []) + ["eq_reverb", "mastering"]
+    total_stages = len(stages)
+
+    def report_stage(stage_name):
+        if not progress_file:
+            return
+        idx = stages.index(stage_name) + 1
+        pct = progress_start + int((idx / total_stages) * (progress_end - progress_start))
+        try:
+            with open(progress_file, 'w') as f:
+                json.dump({"progress": pct, "stage": stage_name}, f)
+        except:
+            pass
+
     temp_path = input_path.replace(".wav", "_temp_pydub.wav")
     
     # 1. PyDub: Preview slice & Pure Vinyl Slowdown
@@ -38,7 +56,8 @@ def apply_audio_effects(
         }).set_frame_rate(audio_segment.frame_rate)
         
     audio_segment.export(temp_path, format="wav")
-    
+    report_stage("slowdown")
+
     # 2. Pedalboard: Parallel Processing Chain (Reverb & Mastering)
     with AudioFile(temp_path) as f:
         audio = f.read(f.frames)
@@ -78,7 +97,8 @@ def apply_audio_effects(
         widening_amount = orbit_widening * np.abs(pan_val)
         audio[0, :] = left_ch - (right_ch * widening_amount)
         audio[1, :] = right_ch - (left_ch * widening_amount)
-        
+        report_stage("8d")
+
     # Dry Chain: Basic EQ and Saturation
     dry_board = Pedalboard([
         LowShelfFilter(cutoff_frequency_hz=150, gain_db=bass_boost_db),
@@ -100,18 +120,20 @@ def apply_audio_effects(
     
     # Mix signals together
     mixed_audio = processed_dry + processed_wet
-    
+    report_stage("eq_reverb")
+
     # Mastering Chain
     master_board = Pedalboard([
         Gain(gain_db=-3.0), # Prevent clipping from heavy bass boosts
         Limiter(threshold_db=-1.0)
     ])
-    
+
     final_effected = master_board(mixed_audio, samplerate)
-    
+
     with AudioFile(output_path, 'w', samplerate, final_effected.shape[0]) as f:
         f.write(final_effected)
-        
+    report_stage("mastering")
+
     # Cleanup temp
     if os.path.exists(temp_path): os.remove(temp_path)
 

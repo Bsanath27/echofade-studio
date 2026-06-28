@@ -1,11 +1,22 @@
 import { useState } from 'react'
 
+const STAGE_LABELS = {
+  starting: 'Starting...',
+  slowdown: 'Applying vinyl slowdown...',
+  '8d': 'Rendering 8D spatial panning...',
+  eq_reverb: 'Applying EQ & reverb...',
+  mastering: 'Mastering audio...',
+  rendering: 'Compositing video frames...',
+  done: 'Done!'
+}
+
 export default function StepExport({
   audioPath, bgFile, lyrics, songTitle,
   speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth,
   enable8D, orbitTime, orbitDucking, orbitWidening,
   fontFamily, fontColor, fontSize,
   posX, posY, textTransform, strokeWidth, strokeColor, shadowOffset,
+  lyricStyle,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -13,6 +24,7 @@ export default function StepExport({
   const [fileName, setFileName] = useState(songTitle ? `${songTitle} (Slowed + Reverb)` : 'lyric_video')
   const [isRendering, setIsRendering] = useState(false)
   const [renderProgress, setRenderProgress] = useState(0)
+  const [renderStage, setRenderStage] = useState('')
   const [downloadUrl, setDownloadUrl] = useState('')
 
   const handleRender = async () => {
@@ -45,16 +57,19 @@ export default function StepExport({
     formData.append('shadow_offset', shadowOffset)
     formData.append('quality', renderQuality)
     formData.append('engine', renderEngine)
+    formData.append('lyric_style', lyricStyle)
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)
 
     setRenderProgress(0)
+    setRenderStage('starting')
 
     const progressInterval = setInterval(async () => {
       try {
         const pRes = await fetch('http://127.0.0.1:8000/api/render-progress')
         const pData = await pRes.json()
         setRenderProgress(pData.progress || 0)
+        setRenderStage(pData.stage || '')
       } catch (e) {}
     }, 1000)
 
@@ -167,7 +182,7 @@ export default function StepExport({
           <div className="progress-bar-bg">
             <div className="progress-bar-fill" style={{width: `${renderProgress}%`, transition: 'width 0.5s ease'}}></div>
           </div>
-          <div className="render-status">Processing audio and compositing video frames... {renderProgress}%</div>
+          <div className="render-status">{STAGE_LABELS[renderStage] || 'Processing...'} {renderProgress}%</div>
         </div>
       )}
 

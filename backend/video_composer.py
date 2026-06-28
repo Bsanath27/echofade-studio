@@ -1,5 +1,4 @@
 from moviepy import ImageClip, VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, vfx
-import librosa
 import os
 
 def create_video(
@@ -18,7 +17,6 @@ def create_video(
     shadow_offset: int = 4,
     font_size: int = 60,
     quality: str = "final",
-    enable_beat_sync: bool = False,
     logger = None
 ):
     """
@@ -49,21 +47,8 @@ def create_video(
         base_image = base_image.resized(height=res_h, width=res_w)
     
     clips = [base_image]
-    
-    # 2. Optional Visual Beat Sync (Pump Effect)
-    # If enabled, we find beats and add brief flashes or scale pumps
-    if enable_beat_sync:
-        print("Detecting beats for visual sync...")
-        y, sr = librosa.load(audio_path)
-        tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-        beat_times = librosa.frames_to_time(beat_frames, sr=sr)
-        
-        # We could apply effects here by cutting the image clip, 
-        # but for simplicity in moviepy, we might overlay a semi-transparent white flash
-        # (This is computationally expensive to render many small clips, so we skip implementation details in prototype)
-        pass
 
-    # 3. Text Overlays (Lyrics)
+    # 2. Text Overlays (Lyrics)
     print("Generating text clips with shadows and speed synchronization...")
     
     # Map fonts to standalone Bold .ttf files (Pillow requires absolute paths to .ttf, and .ttc files default to thin)

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 
-export default function StepLyrics({ 
-  lyrics, setLyrics, speed, previewAudioUrl,
+export default function StepLyrics({
+  lyrics, setLyrics, speed, previewAudioUrl, audioPath,
   fontFamily, setFontFamily,
   fontColor, setFontColor,
   fontSize, setFontSize,
@@ -11,6 +11,7 @@ export default function StepLyrics({
   strokeWidth, setStrokeWidth,
   strokeColor, setStrokeColor,
   shadowOffset, setShadowOffset,
+  lyricStyle, setLyricStyle,
   bgFile
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -62,9 +63,13 @@ export default function StepLyrics({
   }, [parsedLines])
 
   const handleGenerateAI = async () => {
+    if (!audioPath) {
+      alert('No audio found. Please import a track in Step 1 first!')
+      return
+    }
     setIsGenerating(true)
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/generate-lyrics`)
+      const res = await fetch(`http://127.0.0.1:8000/api/generate-lyrics?audio_path=${encodeURIComponent(audioPath)}`)
       const data = await res.json()
       if (data.status === 'success') {
         setLyrics(data.lyrics)
@@ -134,10 +139,10 @@ export default function StepLyrics({
 
         <div className="ai-generate-card" style={{marginTop: '20px', padding: '16px', background: 'rgba(255, 122, 0, 0.05)', border: '1px dashed var(--accent)', borderRadius: '8px', textAlign: 'center'}}>
           <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px'}}>Can't find the lyrics online? Let AI listen to the track and transcribe it automatically.</p>
-          <button 
-            className="btn" 
-            onClick={handleGenerateAI} 
-            disabled={isGenerating}
+          <button
+            className="btn"
+            onClick={handleGenerateAI}
+            disabled={isGenerating || !audioPath}
             style={{background: 'var(--accent)', color: '#000', fontWeight: 'bold'}}
           >
             {isGenerating ? 'Listening & Transcribing... (This may take a minute)' : '✨ Auto-Generate Lyrics with AI'}
@@ -148,6 +153,23 @@ export default function StepLyrics({
       {/* Typography Controls */}
       <div className="panel">
         <div className="panel-title">Typography Settings</div>
+
+        <div className="control-group" style={{marginBottom: '15px'}}>
+          <label>Lyric Display Style</label>
+          <div style={{display: 'flex', gap: '10px'}}>
+            <button
+              className={`source-tab ${lyricStyle === 'single' ? 'active' : ''}`}
+              onClick={() => setLyricStyle('single')}
+              style={{flex: 1}}
+            >Single Line (Classic)</button>
+            <button
+              className={`source-tab ${lyricStyle === 'stack' ? 'active' : ''}`}
+              onClick={() => setLyricStyle('stack')}
+              style={{flex: 1}}
+            >3-Line Stack (Karaoke)</button>
+          </div>
+        </div>
+
         <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
           <div className="control-group" style={{flex: 1, minWidth: '200px'}}>
             <label>Font Family</label>
@@ -273,7 +295,7 @@ export default function StepLyrics({
                   flexDirection: 'column',
                   gap: '5px'
                 }}>
-                  {[-1, 0, 1].map(offset => {
+                  {(lyricStyle === 'stack' ? [-1, 0, 1] : [0]).map(offset => {
                     const lineIdx = currentLineIdx + offset
                     if (lineIdx < 0 || lineIdx >= parsedLines.length) return null
                     const line = parsedLines[lineIdx]
