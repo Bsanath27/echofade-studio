@@ -74,6 +74,41 @@ const PRESETS = [
     name: 'Sleep / Rain',
     desc: 'Soft and hazy with rolled-off rumble — for hours-long sleep & study',
     values: { speed: 0.82, reverbRoom: 0.8, reverbMix: 36, bassBoost: -1, trebleBoost: -3, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+
+  // ── Tamil-tuned presets ──
+  // Tamil melody/film vocals sit in the upper-mid with lots of breath (Sid Sriram,
+  // Chinmayi); the dark reverb tames harshness, so we keep treble neutral-to-bright
+  // to preserve vocal air, and avoid over-slowing which kills gamaka/melisma nuance.
+  {
+    name: 'Tamil Feel (Melody)',
+    category: 'Tamil',
+    desc: 'The love-failure / melody default — gentle slow, warm lush reverb, vocals kept forward (Po Nee Po, Kanave Kanave)',
+    values: { speed: 0.88, reverbRoom: 0.62, reverbMix: 30, bassBoost: 2.5, trebleBoost: 0.5, warmth: 0.3, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Sid Sriram Soul',
+    category: 'Tamil',
+    desc: 'Airy and spacious for breathy gospel-soul vocals — big reverb, extra air on top (Kalaavathi, Adiye, Ennodu Nee Irundhaal)',
+    values: { speed: 0.90, reverbRoom: 0.72, reverbMix: 34, bassBoost: 1.5, trebleBoost: 2, warmth: 0.15, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'A.R. Rahman Hall',
+    category: 'Tamil',
+    desc: 'Grand orchestral hall for string-led Rahman melodies — biggest reverb, balanced tone (Munbe Vaa, Uyire, Mannipaaya)',
+    values: { speed: 0.87, reverbRoom: 0.85, reverbMix: 36, bassBoost: 2, trebleBoost: 0, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Kuthu Slowed (Mass)',
+    category: 'Tamil',
+    desc: 'Keeps the groove on Anirudh mass/beat tracks — barely slowed, punchy bass, tight reverb (Vaathi Coming, Arabic Kuthu)',
+    values: { speed: 0.93, reverbRoom: 0.34, reverbMix: 16, bassBoost: 5, trebleBoost: 1, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Tamil Lofi Night',
+    category: 'Tamil',
+    desc: 'Cozy late-night Tamil lofi — warm saturation, softly rolled highs (Nenjukulle, Kannazhaga, Aaruyirae)',
+    values: { speed: 0.89, reverbRoom: 0.5, reverbMix: 24, bassBoost: 3, trebleBoost: -2.5, warmth: 0.55, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
   }
 ]
 
@@ -159,17 +194,28 @@ export default function StepMaster({
         <p>Shape the sound with effects, EQ, and spatial audio</p>
       </div>
 
-      {/* Presets */}
-      <div className="preset-bar">
-        {PRESETS.map(p => (
-          <button 
-            key={p.name}
-            className={`preset-pill ${activePreset === p.name ? 'active' : ''}`}
-            onClick={() => applyPreset(p)}
-            title={p.desc}
-          >{p.name}</button>
-        ))}
-      </div>
+      {/* Presets (grouped by category) */}
+      {['Universal', 'Tamil'].map(cat => {
+        const group = PRESETS.filter(p => (p.category || 'Universal') === cat)
+        if (group.length === 0) return null
+        return (
+          <div key={cat} style={{marginBottom: '14px'}}>
+            <div style={{fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600}}>
+              {cat === 'Tamil' ? '🎬 Tamil' : 'Universal'}
+            </div>
+            <div className="preset-bar">
+              {group.map(p => (
+                <button
+                  key={p.name}
+                  className={`preset-pill ${activePreset === p.name ? 'active' : ''}`}
+                  onClick={() => applyPreset(p)}
+                  title={p.desc}
+                >{p.name}</button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
       {activePreset && (
         <p style={{fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px', fontStyle: 'italic'}}>
           {PRESETS.find(p => p.name === activePreset)?.desc}
