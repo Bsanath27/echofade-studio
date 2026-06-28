@@ -17,6 +17,7 @@ def create_video(
     shadow_offset: int = 4,
     font_size: int = 60,
     quality: str = "final",
+    aspect_ratio: str = "16:9",
     logger = None
 ):
     """
@@ -25,12 +26,15 @@ def create_video(
     """
     audio_clip = AudioFileClip(audio_path)
     duration = audio_clip.duration
-    
+
     # 1. Base Image/Video Layer
     ext = image_path.lower().split(".")[-1]
     is_video = ext in ["mp4", "mov", "webm", "gif"]
-    
-    res_h, res_w = (1080, 1920) if quality == "final" else (480, 854)
+
+    if aspect_ratio == "9:16":
+        res_h, res_w = (1920, 1080) if quality == "final" else (854, 480)
+    else:
+        res_h, res_w = (1080, 1920) if quality == "final" else (480, 854)
     
     # Scale font size for draft mode
     if quality == "draft":

@@ -16,7 +16,7 @@ export default function StepExport({
   enable8D, orbitTime, orbitDucking, orbitWidening,
   fontFamily, fontColor, fontSize,
   posX, posY, textTransform, strokeWidth, strokeColor, shadowOffset,
-  lyricStyle,
+  lyricStyle, aspectRatio,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -58,6 +58,7 @@ export default function StepExport({
     formData.append('quality', renderQuality)
     formData.append('engine', renderEngine)
     formData.append('lyric_style', lyricStyle)
+    formData.append('aspect_ratio', aspectRatio)
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)
 
@@ -117,6 +118,10 @@ export default function StepExport({
           <div className="summary-item">
             <span className="label">8D Audio</span>
             <span className="value">{enable8D ? 'On' : 'Off'}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">Format</span>
+            <span className="value">{aspectRatio === '9:16' ? 'Vertical 9:16' : 'Landscape 16:9'}</span>
           </div>
           <div className="summary-item">
             <span className="label">Bass Boost</span>

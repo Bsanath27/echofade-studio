@@ -15,10 +15,10 @@ const PRESETS = [
     desc: 'The YouTube standard — gentle slowdown, medium reverb, warm bass',
     values: { speed: 0.85, reverbRoom: 0.55, reverbMix: 28, bassBoost: 2.5, trebleBoost: -1, warmth: 0.25, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 15 }
   },
-  { 
+  {
     name: 'Daycore',
     desc: 'Deep pitch drop, heavy reverb, subterranean bass — the moody aesthetic',
-    values: { speed: 0.75, reverbRoom: 0.7, reverbMix: 40, bassBoost: 5, trebleBoost: -3, warmth: 0.5, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+    values: { speed: 0.75, reverbRoom: 0.7, reverbMix: 34, bassBoost: 3.5, trebleBoost: -3, warmth: 0.5, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
   },
   { 
     name: 'Lo-Fi Bedroom',
@@ -40,15 +40,40 @@ const PRESETS = [
     desc: 'Sped up, bright, and airy — anime edit energy',
     values: { speed: 1.25, reverbRoom: 0.25, reverbMix: 12, bassBoost: -1, trebleBoost: 3, warmth: 0, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
   },
-  { 
+  {
     name: 'Vapor Wave',
     desc: 'Extreme slow, heavy saturation, drenched in reverb — A E S T H E T I C',
-    values: { speed: 0.7, reverbRoom: 0.85, reverbMix: 50, bassBoost: 4, trebleBoost: -5, warmth: 0.8, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+    values: { speed: 0.7, reverbRoom: 0.85, reverbMix: 44, bassBoost: 4, trebleBoost: -5, warmth: 0.8, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
   },
-  { 
+  {
     name: 'Clean + Subtle',
     desc: 'Barely slowed, light reverb — just enough to make it feel dreamy',
     values: { speed: 0.93, reverbRoom: 0.35, reverbMix: 18, bassBoost: 1, trebleBoost: 0, warmth: 0.1, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Sped-Up (TikTok)',
+    desc: 'Gentle speed-up, bright and crisp — the mainstream "sped up version" sound',
+    values: { speed: 1.15, reverbRoom: 0.3, reverbMix: 16, bassBoost: 0, trebleBoost: 1.5, warmth: 0.05, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Another Room',
+    desc: 'Muffled, rolled-off highs — like it’s playing in the next room',
+    values: { speed: 0.9, reverbRoom: 0.5, reverbMix: 30, bassBoost: 1, trebleBoost: -8, warmth: 0.15, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Phonk Drift',
+    desc: 'Heavy saturated low-end, tight and punchy — for drift & car edits',
+    values: { speed: 0.92, reverbRoom: 0.25, reverbMix: 12, bassBoost: 6, trebleBoost: 1, warmth: 0.45, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Arena Live',
+    desc: 'Big-venue reverb — imagine you’re standing at the concert',
+    values: { speed: 0.95, reverbRoom: 0.9, reverbMix: 32, bassBoost: 2, trebleBoost: -1, warmth: 0.1, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
+  },
+  {
+    name: 'Sleep / Rain',
+    desc: 'Soft and hazy with rolled-off rumble — for hours-long sleep & study',
+    values: { speed: 0.82, reverbRoom: 0.8, reverbMix: 36, bassBoost: -1, trebleBoost: -3, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
   }
 ]
 

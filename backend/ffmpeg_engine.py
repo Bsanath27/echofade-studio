@@ -94,14 +94,18 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
                         font_family="Montserrat", font_color="#ffffff", pos_x=50, pos_y=50,
                         text_transform="uppercase", stroke_width=2, stroke_color="#000000",
                         shadow_offset=4, font_size=60, quality="final", lyric_style="single",
+                        aspect_ratio="16:9",
                         progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
-    
+
     # 1. Determine background properties
     ext = image_path.lower().split(".")[-1]
     is_video = ext in ["mp4", "mov", "webm", "gif"]
-    
-    res_w, res_h = (1920, 1080) if quality == "final" else (854, 480)
+
+    if aspect_ratio == "9:16":
+        res_w, res_h = (1080, 1920) if quality == "final" else (480, 854)
+    else:
+        res_w, res_h = (1920, 1080) if quality == "final" else (854, 480)
     fps = 24 if quality == "final" else 15
     
     # Scale font size for draft (to maintain proportion)

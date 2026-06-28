@@ -247,6 +247,7 @@ async def render_video(
     quality: str = Form("final"),
     engine: str = Form("ffmpeg"),
     lyric_style: str = Form("single"),
+    aspect_ratio: str = Form("16:9"),
     file_name: str = Form("final_lyric_video"),
     image: UploadFile = File(...)
 ):
@@ -319,6 +320,7 @@ async def render_video(
             shadow_offset=shadow_offset,
             font_size=font_size,
             quality=quality,
+            aspect_ratio=aspect_ratio,
         )
 
         if engine == "ffmpeg":

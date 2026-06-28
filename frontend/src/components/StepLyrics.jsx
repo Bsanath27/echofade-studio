@@ -12,6 +12,7 @@ export default function StepLyrics({
   strokeColor, setStrokeColor,
   shadowOffset, setShadowOffset,
   lyricStyle, setLyricStyle,
+  aspectRatio,
   bgFile
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -269,8 +270,14 @@ export default function StepLyrics({
             <audio ref={audioRef} controls src={previewAudioUrl} style={{width: '100%'}} />
           </div>
 
-          <div className="control-group" style={{flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', borderRadius: '8px', background: '#000', height: '300px'}}>
-            <label style={{position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px', color: '#fff', fontSize: '0.7rem'}}>Visual Layout Preview</label>
+          <div className="control-group" style={{
+            display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
+            borderRadius: '8px', background: '#000', margin: '0 auto',
+            ...(aspectRatio === '9:16'
+              ? { height: '460px', aspectRatio: '9 / 16', maxWidth: '100%' }
+              : { width: '100%', aspectRatio: '16 / 9' })
+          }}>
+            <label style={{position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px', color: '#fff', fontSize: '0.7rem'}}>Visual Layout Preview · {aspectRatio}</label>
             
             {/* Background Media */}
             {bgUrl && (

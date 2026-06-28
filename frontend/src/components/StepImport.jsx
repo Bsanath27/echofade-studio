@@ -1,10 +1,11 @@
 import { useState } from 'react'
 
-export default function StepImport({ 
-  audioPath, setAudioPath, 
+export default function StepImport({
+  audioPath, setAudioPath,
   songTitle, setSongTitle,
   bgFile, setBgFile,
-  setStatus 
+  aspectRatio, setAspectRatio,
+  setStatus
 }) {
   const [sourceMode, setSourceMode] = useState('youtube') // 'youtube' | 'local'
   const [url, setUrl] = useState('')
@@ -140,6 +141,21 @@ export default function StepImport({
         )}
       </div>
 
+      {/* Output Format */}
+      <div className="panel">
+        <div className="panel-title">Output Format</div>
+        <div className="source-tabs">
+          <button
+            className={`source-tab ${aspectRatio === '16:9' ? 'active' : ''}`}
+            onClick={() => setAspectRatio('16:9')}
+          >📺 Landscape 16:9<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>YouTube · 1920×1080</span></button>
+          <button
+            className={`source-tab ${aspectRatio === '9:16' ? 'active' : ''}`}
+            onClick={() => setAspectRatio('9:16')}
+          >📱 Vertical 9:16<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>Shorts · Reels · TikTok · 1080×1920</span></button>
+        </div>
+      </div>
+
       {/* Background Visual */}
       <div className="panel">
         <div className="panel-title">Background Visual</div>
@@ -158,7 +174,7 @@ export default function StepImport({
             <div className="drop-zone-icon">🖼️</div>
             <div className="drop-zone-text">
               <strong>Upload a background image or video</strong><br/>
-              16:9 recommended (1920×1080)
+              {aspectRatio === '9:16' ? '9:16 recommended (1080×1920) — it will be center-cropped to fill' : '16:9 recommended (1920×1080) — it will be center-cropped to fill'}
             </div>
             <input 
               id="bg-upload" type="file" accept="image/*,video/*" 

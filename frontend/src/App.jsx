@@ -13,6 +13,7 @@ function App() {
   const [audioPath, setAudioPath] = useState('')
   const [songTitle, setSongTitle] = useState('')
   const [bgFile, setBgFile] = useState(null)
+  const [aspectRatio, setAspectRatio] = useState('16:9')
   const [lyrics, setLyrics] = useState('')
   const [previewAudioUrl, setPreviewAudioUrl] = useState('')
   
@@ -74,10 +75,11 @@ function App() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <StepImport 
+        return <StepImport
           audioPath={audioPath} setAudioPath={setAudioPath}
           songTitle={songTitle} setSongTitle={setSongTitle}
           bgFile={bgFile} setBgFile={setBgFile}
+          aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
           setStatus={setStatus}
         />
       case 2:
@@ -110,6 +112,7 @@ function App() {
           strokeColor={strokeColor} setStrokeColor={setStrokeColor}
           shadowOffset={shadowOffset} setShadowOffset={setShadowOffset}
           lyricStyle={lyricStyle} setLyricStyle={setLyricStyle}
+          aspectRatio={aspectRatio}
           bgFile={bgFile}
         />
       case 4:
@@ -121,7 +124,7 @@ function App() {
           fontFamily={fontFamily} fontColor={fontColor} fontSize={fontSize}
           posX={posX} posY={posY} textTransform={textTransform}
           strokeWidth={strokeWidth} strokeColor={strokeColor} shadowOffset={shadowOffset}
-          lyricStyle={lyricStyle}
+          lyricStyle={lyricStyle} aspectRatio={aspectRatio}
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}
