@@ -44,10 +44,15 @@ def apply_audio_effects(
     temp_path = input_path.replace(".wav", "_temp_pydub.wav")
     
     # 1. PyDub: Preview slice & Pure Vinyl Slowdown
-    audio_segment = AudioSegment.from_wav(input_path)
-    
     if preview:
-        audio_segment = audio_segment[:30000] # First 30s
+        import subprocess
+        sliced_path = input_path.replace(".wav", "_sliced_preview.wav")
+        subprocess.run(["ffmpeg", "-y", "-i", input_path, "-t", "30", sliced_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        audio_segment = AudioSegment.from_wav(sliced_path)
+        if os.path.exists(sliced_path):
+            os.remove(sliced_path)
+    else:
+        audio_segment = AudioSegment.from_wav(input_path)
         
     if speed != 1.0:
         new_sample_rate = int(audio_segment.frame_rate * float(speed))
@@ -72,6 +77,7 @@ def apply_audio_effects(
         num_samples = audio.shape[1]
         t = np.arange(num_samples) / samplerate
         
+        orbit_time = max(orbit_time, 0.1) # Prevent ZeroDivisionError
         # X-Axis (Left to Right)
         pan_val = np.sin(2 * np.pi * t / orbit_time)
         # Y-Axis (Strictly Back Semi-circle)

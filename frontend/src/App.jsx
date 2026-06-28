@@ -31,6 +31,14 @@ function App() {
   const [shadowOffset, setShadowOffset] = useState(4)
   const [lyricStyle, setLyricStyle] = useState('single')
 
+  // Background style (Phase 1: cinematic backgrounds)
+  const [bgMode, setBgMode] = useState('image')
+  const [bgBlur, setBgBlur] = useState(0)
+  const [bgDim, setBgDim] = useState(0)
+  const [kenBurns, setKenBurns] = useState(false)
+  const [grain, setGrain] = useState(0)
+  const [vignette, setVignette] = useState(0)
+
   // Audio mastering
   const [speed, setSpeed] = useState(1.0)
   const [reverbRoom, setReverbRoom] = useState(0.5)
@@ -113,6 +121,12 @@ function App() {
           shadowOffset={shadowOffset} setShadowOffset={setShadowOffset}
           lyricStyle={lyricStyle} setLyricStyle={setLyricStyle}
           aspectRatio={aspectRatio}
+          bgMode={bgMode} setBgMode={setBgMode}
+          bgBlur={bgBlur} setBgBlur={setBgBlur}
+          bgDim={bgDim} setBgDim={setBgDim}
+          kenBurns={kenBurns} setKenBurns={setKenBurns}
+          grain={grain} setGrain={setGrain}
+          vignette={vignette} setVignette={setVignette}
           bgFile={bgFile}
         />
       case 4:
@@ -125,6 +139,7 @@ function App() {
           posX={posX} posY={posY} textTransform={textTransform}
           strokeWidth={strokeWidth} strokeColor={strokeColor} shadowOffset={shadowOffset}
           lyricStyle={lyricStyle} aspectRatio={aspectRatio}
+          bgMode={bgMode} bgBlur={bgBlur} bgDim={bgDim} kenBurns={kenBurns} grain={grain} vignette={vignette}
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}

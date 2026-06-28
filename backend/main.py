@@ -9,6 +9,8 @@ import os
 import shutil
 import json
 import uuid
+import subprocess
+import asyncio
 from proglog import ProgressBarLogger
 
 from downloader import download_audio
@@ -18,6 +20,7 @@ from video_composer import create_video
 import requests
 
 app = FastAPI(title="Lyric Video Generator API")
+WHISPER_MODEL = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,7 +105,8 @@ async def fetch_audio(url: str = Form(...)):
 async def upload_audio(audio: UploadFile = File(...)):
     """Accept a local MP3/WAV file upload."""
     ext = audio.filename.split(".")[-1]
-    save_path = os.path.join(TEMP_DIR, f"uploaded_audio.{ext}")
+    job_id = uuid.uuid4().hex[:8]
+    save_path = os.path.join(TEMP_DIR, f"uploaded_audio_{job_id}.{ext}")
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(audio.file, buffer)
     return {
@@ -135,9 +139,10 @@ def search_lyrics(q: str):
         return {"status": "error", "message": str(e)}
 
 @app.get("/api/render-progress")
-def get_render_progress():
+def get_render_progress(job_id: str = None):
     try:
-        with open(os.path.join(TEMP_DIR, "render_progress.json"), "r") as f:
+        filename = f"{job_id}_progress.json" if job_id else "render_progress.json"
+        with open(os.path.join(TEMP_DIR, filename), "r") as f:
             return json.load(f)
     except:
         return {"progress": 0}
@@ -145,6 +150,7 @@ def get_render_progress():
 @app.post("/api/preview-audio")
 async def preview_audio(
     audio_path: str = Form(...),
+    job_id: str = Form(None),
     speed: float = Form(1.0),
     reverb_room_size: float = Form(0.5),
     reverb_mix: float = Form(0.2),
@@ -156,12 +162,14 @@ async def preview_audio(
     orbit_ducking: float = Form(4.0),
     orbit_widening: float = Form(0.15)
 ):
+    if not job_id:
+        job_id = uuid.uuid4().hex[:8]
     print("Generating audio preview...")
-    progress_file = os.path.join(TEMP_DIR, "render_progress.json")
+    progress_file = os.path.join(TEMP_DIR, f"{job_id}_progress.json")
     with open(progress_file, 'w') as f:
         json.dump({"progress": 0, "stage": "starting"}, f)
 
-    preview_audio_path = os.path.join(PREVIEW_DIR, "preview_audio.wav")
+    preview_audio_path = os.path.join(PREVIEW_DIR, f"preview_audio_{job_id}.wav")
     apply_audio_effects(
         input_path=audio_path,
         output_path=preview_audio_path,
@@ -181,7 +189,7 @@ async def preview_audio(
     )
     with open(progress_file, 'w') as f:
         json.dump({"progress": 100, "stage": "done"}, f)
-    return {"status": "success", "audio_url": f"/files/preview/preview_audio.wav?t={uuid.uuid4().hex[:8]}"}
+    return {"status": "success", "audio_url": f"/files/preview/preview_audio_{job_id}.wav?t={uuid.uuid4().hex[:8]}"}
 
 @app.get("/api/generate-lyrics")
 async def generate_lyrics(audio_path: str):
@@ -193,12 +201,20 @@ async def generate_lyrics(audio_path: str):
     if not audio_path or not os.path.exists(audio_path):
         return JSONResponse({"status": "error", "message": "No audio found. Please import a track in Step 1 first!"}, status_code=400)
 
+    full_path = os.path.realpath(audio_path)
+    temp_root = os.path.realpath(TEMP_DIR)
+    if not full_path.startswith(temp_root + os.sep):
+        return JSONResponse({"status": "error", "message": "Invalid audio path."}, status_code=400)
+
     try:
-        import whisper
-        print("Loading Whisper model...")
-        model = whisper.load_model("base")
+        global WHISPER_MODEL
+        if WHISPER_MODEL is None:
+            import whisper
+            print("Loading Whisper model...")
+            WHISPER_MODEL = whisper.load_model("base")
+        
         print("Transcribing audio...")
-        result = model.transcribe(audio_path)
+        result = await asyncio.to_thread(WHISPER_MODEL.transcribe, full_path)
 
         # Format into LRC
         lrc_lines = []
@@ -248,17 +264,25 @@ async def render_video(
     engine: str = Form("ffmpeg"),
     lyric_style: str = Form("single"),
     aspect_ratio: str = Form("16:9"),
+    bg_mode: str = Form("image"),
+    bg_blur: float = Form(0.0),
+    bg_dim: float = Form(0.0),
+    ken_burns: bool = Form(False),
+    grain: float = Form(0.0),
+    vignette_strength: float = Form(0.0),
     file_name: str = Form("final_lyric_video"),
+    job_id: str = Form(None),
     image: UploadFile = File(...)
 ):
     try:
         # 0. Set up an isolated job directory so concurrent/successive renders
         # never clobber each other's inputs or outputs.
-        job_id = uuid.uuid4().hex[:12]
+        if not job_id:
+            job_id = uuid.uuid4().hex[:12]
         job_dir = os.path.join(JOBS_DIR, job_id)
         os.makedirs(job_dir, exist_ok=True)
 
-        progress_file = os.path.join(TEMP_DIR, "render_progress.json")
+        progress_file = os.path.join(TEMP_DIR, f"{job_id}_progress.json")
         with open(progress_file, 'w') as f:
             json.dump({"progress": 0, "stage": "starting"}, f)
 
@@ -273,7 +297,7 @@ async def render_video(
         # Convert HEIC to JPG using macOS native sips
         if image_ext in ['heic', 'heif']:
             jpg_path = os.path.join(job_dir, "bg_image.jpg")
-            os.system(f"sips -s format jpeg '{image_path}' --out '{jpg_path}' > /dev/null 2>&1")
+            subprocess.run(["sips", "-s", "format", "jpeg", image_path, "--out", jpg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             image_path = jpg_path
 
         # 2. Process Audio (occupies the first 15% of the progress bar)
@@ -327,6 +351,12 @@ async def render_video(
             create_video_ffmpeg(
                 **composer_kwargs,
                 lyric_style=lyric_style,
+                bg_mode=bg_mode,
+                bg_blur=bg_blur,
+                bg_dim=bg_dim,
+                ken_burns=ken_burns,
+                grain=grain,
+                vignette_strength=vignette_strength,
                 progress_file=progress_file,
                 progress_start=15,
                 progress_end=100

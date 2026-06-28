@@ -11,3 +11,11 @@ frontend/dist/
 temp/
 *.pyc
 __pycache__/
+
+# Unrelated ticketing tooling (not part of this app)
+tickets/
+.gitmodules
+archive_tickets.py
+create_tickets.py
+download.py
+mt.py

@@ -95,6 +95,8 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
                         text_transform="uppercase", stroke_width=2, stroke_color="#000000",
                         shadow_offset=4, font_size=60, quality="final", lyric_style="single",
                         aspect_ratio="16:9",
+                        bg_mode="image", bg_blur=0, bg_dim=0.0, ken_burns=False,
+                        grain=0, vignette_strength=0.0,
                         progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
 
@@ -129,17 +131,54 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
 
     # 4. Construct FFmpeg Command
     cmd = ["ffmpeg", "-y"]
-    
-    if is_video:
+
+    use_gradient = (bg_mode == "gradient")
+
+    if use_gradient:
+        # Build an animated, color-matched gradient as the background source.
+        from color_extract import extract_palette, hex_to_ffmpeg
+        palette = extract_palette(image_path, count=3)
+        c0 = hex_to_ffmpeg(palette[0])
+        c1 = hex_to_ffmpeg(palette[-1])
+        c2 = hex_to_ffmpeg(palette[len(palette) // 2])
+        grad = (f"gradients=s={res_w}x{res_h}:c0={c0}:c1={c1}:c2={c2}:c3={c0}"
+                f":x0=0:y0=0:x1={res_w}:y1={res_h}:speed=0.01:d={duration}:r={fps}")
+        cmd.extend(["-f", "lavfi", "-i", grad])
+    elif is_video:
         cmd.extend(["-stream_loop", "-1", "-i", image_path])
     else:
         cmd.extend(["-loop", "1", "-framerate", str(fps), "-i", image_path])
-        
+
     cmd.extend(["-i", audio_path])
-    
-    # Video Filter: Scale -> Pad/Crop (ensure exact resolution) -> ASS Subtitles
-    vf_chain = f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},ass='{ass_path}'"
-    
+
+    # Video filter chain: build the background treatment stages dynamically,
+    # then burn the ASS lyrics on top (always last, so text stays crisp).
+    vf_stages = []
+    if not use_gradient:
+        vf_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
+
+    # Ken Burns slow zoom (stills only) — linear zoom across the whole song.
+    if ken_burns and not is_video and not use_gradient:
+        total_frames = max(1, int(duration * fps))
+        vf_stages.append(
+            f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
+            f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+            f":d=1:s={res_w}x{res_h}:fps={fps}"
+        )
+
+    if bg_blur and float(bg_blur) > 0:
+        vf_stages.append(f"gblur=sigma={float(bg_blur)}")
+    if bg_dim and float(bg_dim) > 0:
+        vf_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
+    if grain and float(grain) > 0:
+        vf_stages.append(f"noise=alls={int(float(grain))}:allf=t")
+    if vignette_strength and float(vignette_strength) > 0:
+        angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
+        vf_stages.append(f"vignette=a={angle:.4f}")
+
+    vf_stages.append(f"ass='{ass_path}'")
+    vf_chain = ",".join(vf_stages)
+
     cmd.extend([
         "-map", "0:v:0",
         "-map", "1:a:0",

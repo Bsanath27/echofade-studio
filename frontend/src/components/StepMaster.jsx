@@ -111,9 +111,11 @@ export default function StepMaster({
     setPreviewStage('starting')
     setStatus('Rendering full audio preview...')
 
+    const jobId = Math.random().toString(36).substring(2, 10)
+
     const progressInterval = setInterval(async () => {
       try {
-        const pRes = await fetch('http://127.0.0.1:8000/api/render-progress')
+        const pRes = await fetch(`http://127.0.0.1:8000/api/render-progress?job_id=${jobId}`)
         const pData = await pRes.json()
         setPreviewProgress(pData.progress || 0)
         setPreviewStage(pData.stage || '')
@@ -122,6 +124,7 @@ export default function StepMaster({
 
     const formData = new FormData()
     formData.append('audio_path', audioPath)
+    formData.append('job_id', jobId)
     formData.append('speed', speed)
     formData.append('reverb_room_size', reverbRoom)
     formData.append('reverb_mix', reverbMix)

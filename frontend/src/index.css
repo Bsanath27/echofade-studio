@@ -699,3 +699,12 @@ button {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* ── Ken Burns slow-zoom preview ── */
+@keyframes kenburns {
+  0%   { transform: scale(1.0); }
+  100% { transform: scale(1.15); }
+}
+.kenburns-anim {
+  animation: kenburns 20s ease-in-out infinite alternate;
+}

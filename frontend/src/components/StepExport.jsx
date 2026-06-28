@@ -17,6 +17,7 @@ export default function StepExport({
   fontFamily, fontColor, fontSize,
   posX, posY, textTransform, strokeWidth, strokeColor, shadowOffset,
   lyricStyle, aspectRatio,
+  bgMode, bgBlur, bgDim, kenBurns, grain, vignette,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -33,8 +34,11 @@ export default function StepExport({
     setStatus('Rendering video...')
     setDownloadUrl('')
 
+    const jobId = Math.random().toString(36).substring(2, 10)
+
     const formData = new FormData()
     formData.append('audio_path', audioPath)
+    formData.append('job_id', jobId)
     formData.append('raw_lrc', lyrics)
     formData.append('speed', speed)
     formData.append('reverb_room_size', reverbRoom)
@@ -59,6 +63,12 @@ export default function StepExport({
     formData.append('engine', renderEngine)
     formData.append('lyric_style', lyricStyle)
     formData.append('aspect_ratio', aspectRatio)
+    formData.append('bg_mode', bgMode)
+    formData.append('bg_blur', bgBlur)
+    formData.append('bg_dim', bgDim)
+    formData.append('ken_burns', kenBurns)
+    formData.append('grain', grain)
+    formData.append('vignette_strength', vignette)
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)
 
@@ -67,7 +77,7 @@ export default function StepExport({
 
     const progressInterval = setInterval(async () => {
       try {
-        const pRes = await fetch('http://127.0.0.1:8000/api/render-progress')
+        const pRes = await fetch(`http://127.0.0.1:8000/api/render-progress?job_id=${jobId}`)
         const pData = await pRes.json()
         setRenderProgress(pData.progress || 0)
         setRenderStage(pData.stage || '')

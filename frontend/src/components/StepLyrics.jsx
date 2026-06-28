@@ -13,6 +13,12 @@ export default function StepLyrics({
   shadowOffset, setShadowOffset,
   lyricStyle, setLyricStyle,
   aspectRatio,
+  bgMode, setBgMode,
+  bgBlur, setBgBlur,
+  bgDim, setBgDim,
+  kenBurns, setKenBurns,
+  grain, setGrain,
+  vignette, setVignette,
   bgFile
 }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -250,6 +256,62 @@ export default function StepLyrics({
         </div>
       </div>
 
+      {/* Background Style */}
+      <div className="panel">
+        <div className="panel-title">Background Style</div>
+
+        <div className="control-group" style={{marginBottom: '15px'}}>
+          <label>Background Source</label>
+          <div style={{display: 'flex', gap: '10px'}}>
+            <button
+              className={`source-tab ${bgMode === 'image' ? 'active' : ''}`}
+              onClick={() => setBgMode('image')}
+              style={{flex: 1}}
+            >🖼️ Your Image/Video</button>
+            <button
+              className={`source-tab ${bgMode === 'gradient' ? 'active' : ''}`}
+              onClick={() => setBgMode('gradient')}
+              style={{flex: 1}}
+            >🌈 Color Gradient<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>auto-matched to your image</span></button>
+          </div>
+        </div>
+
+        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
+          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
+            <label>Blur</label>
+            <input type="range" className="slider" value={bgBlur} min="0" max="40" onChange={(e) => setBgBlur(Number(e.target.value))} />
+            <div className="slider-value">{bgBlur}</div>
+          </div>
+          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
+            <label>Darken</label>
+            <input type="range" className="slider" value={bgDim} min="0" max="0.6" step="0.05" onChange={(e) => setBgDim(Number(e.target.value))} />
+            <div className="slider-value">{Math.round(bgDim * 100)}%</div>
+          </div>
+        </div>
+
+        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '15px'}}>
+          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
+            <label>Film Grain</label>
+            <input type="range" className="slider" value={grain} min="0" max="30" onChange={(e) => setGrain(Number(e.target.value))} />
+            <div className="slider-value">{grain}</div>
+          </div>
+          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
+            <label>Vignette</label>
+            <input type="range" className="slider" value={vignette} min="0" max="1" step="0.05" onChange={(e) => setVignette(Number(e.target.value))} />
+            <div className="slider-value">{Math.round(vignette * 100)}%</div>
+          </div>
+        </div>
+
+        <div
+          className={`toggle-row ${kenBurns ? 'on' : ''}`}
+          onClick={() => setKenBurns(!kenBurns)}
+          style={{marginTop: '15px'}}
+        >
+          <span>Ken Burns — slow zoom on still images</span>
+          <div className="toggle-switch"></div>
+        </div>
+      </div>
+
       {/* Editor */}
       <div className="panel">
         <div className="panel-title">Lyrics Editor</div>
@@ -279,15 +341,38 @@ export default function StepLyrics({
           }}>
             <label style={{position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px', color: '#fff', fontSize: '0.7rem'}}>Visual Layout Preview · {aspectRatio}</label>
             
-            {/* Background Media */}
-            {bgUrl && (
-              bgFile?.type?.startsWith('video/') ? (
-                <video src={bgUrl} autoPlay loop muted style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0}} />
-              ) : (
-                <img src={bgUrl} style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0}} />
-              )
-            )}
-            
+            {/* Background Media (with approximate effect preview) */}
+            {bgUrl && (() => {
+              const isVid = bgFile?.type?.startsWith('video/')
+              const blurPx = bgMode === 'gradient' ? 45 : bgBlur * 0.45
+              const baseScale = kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5)
+              const mediaStyle = {
+                width: '100%', height: '100%', objectFit: 'cover',
+                position: 'absolute', top: 0, left: 0,
+                filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+                transform: `scale(${baseScale})`,
+                transformOrigin: 'center'
+              }
+              const cls = kenBurns ? 'kenburns-anim' : undefined
+              return isVid
+                ? <video className={cls} src={bgUrl} autoPlay loop muted style={mediaStyle} />
+                : <img className={cls} src={bgUrl} style={mediaStyle} />
+            })()}
+
+            {/* Darken overlay */}
+            {bgDim > 0 && <div style={{position: 'absolute', inset: 0, background: '#000', opacity: bgDim}} />}
+            {/* Film grain overlay */}
+            {grain > 0 && <div style={{
+              position: 'absolute', inset: 0, mixBlendMode: 'overlay',
+              opacity: Math.min(grain / 30 * 0.65, 0.65),
+              backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+            }} />}
+            {/* Vignette overlay */}
+            {vignette > 0 && <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette}) 100%)`
+            }} />}
+
             {/* Visual Safe Area & Coordinate Mapping */}
             <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0}}>
               {parsedLines.length > 0 && (
