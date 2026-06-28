@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+yt-dlp
+pedalboard
+pydub
+librosa
+moviepy
+syrics
+python-multipart

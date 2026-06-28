@@ -1,0 +1,13 @@
+backend/venv/
+backend/temp/
+backend/backend.log
+backend/.DS_Store
+frontend/node_modules/
+frontend/frontend.log
+frontend/dist/
+.backend.pid
+.frontend.pid
+*.pid
+temp/
+*.pyc
+__pycache__/
