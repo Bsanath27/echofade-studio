@@ -1,5 +1,9 @@
-from moviepy import ImageClip, VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, vfx
 import os
+import math
+import platform
+from moviepy import (
+    ImageClip, VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, vfx
+)
 
 def create_video(
     image_path: str,
@@ -55,17 +59,43 @@ def create_video(
     # 2. Text Overlays (Lyrics)
     print("Generating text clips with shadows and speed synchronization...")
     
-    # Map fonts to standalone Bold .ttf files (Pillow requires absolute paths to .ttf, and .ttc files default to thin)
-    font_map = {
-        "Montserrat": os.path.join(os.path.dirname(__file__), 'Montserrat-Bold.ttf'),
-        "Arial": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-        "Helvetica Neue": "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
-        "Impact": "/System/Library/Fonts/Supplemental/Impact.ttf",
-        "Avenir Next": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
-        "Futura": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
-        "Didot": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-        "Baskerville": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf"
-    }
+    # Map fonts to standalone Bold .ttf files dynamically based on OS
+    system = platform.system()
+    montserrat_path = os.path.join(os.path.dirname(__file__), 'Montserrat-Bold.ttf')
+    
+    if system == "Darwin":
+        font_map = {
+            "Montserrat": montserrat_path,
+            "Arial": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            "Helvetica Neue": "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
+            "Impact": "/System/Library/Fonts/Supplemental/Impact.ttf",
+            "Avenir Next": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
+            "Futura": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
+            "Didot": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
+            "Baskerville": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf"
+        }
+    elif system == "Windows":
+        font_map = {
+            "Montserrat": montserrat_path,
+            "Arial": "C:\\Windows\\Fonts\\arialbd.ttf",
+            "Helvetica Neue": "C:\\Windows\\Fonts\\trebucbd.ttf",
+            "Impact": "C:\\Windows\\Fonts\\impact.ttf",
+            "Avenir Next": "C:\\Windows\\Fonts\\arialbd.ttf",
+            "Futura": "C:\\Windows\\Fonts\\arialbd.ttf",
+            "Didot": "C:\\Windows\\Fonts\\georgiab.ttf",
+            "Baskerville": "C:\\Windows\\Fonts\\georgiab.ttf"
+        }
+    else:
+        font_map = {
+            "Montserrat": montserrat_path,
+            "Arial": "Arial-Bold",
+            "Helvetica Neue": "Trebuchet-MS-Bold",
+            "Impact": "Impact",
+            "Avenir Next": "Arial-Bold",
+            "Futura": "Arial-Bold",
+            "Didot": "Georgia-Bold",
+            "Baskerville": "Georgia-Bold"
+        }
     font_path = font_map.get(font_family, font_map["Montserrat"])
     
     for i, line in enumerate(lyrics_data):

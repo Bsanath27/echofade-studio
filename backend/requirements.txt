@@ -7,3 +7,5 @@ moviepy
 syrics
 python-multipart
 openai-whisper
+Pillow
+pillow-heif

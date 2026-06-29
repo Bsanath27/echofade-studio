@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Box, Typography, Paper, Grid, Slider, Switch, FormControlLabel, Button, LinearProgress, Chip } from '@mui/material'
+import { PRESETS, EIGHTD_PRESETS } from '../presets'
 
 const STAGE_LABELS = {
   starting: 'Starting...',
@@ -9,108 +11,7 @@ const STAGE_LABELS = {
   done: 'Done!'
 }
 
-const PRESETS = [
-  { 
-    name: 'Classic Slowed+Reverb',
-    desc: 'The YouTube standard — gentle slowdown, medium reverb, warm bass',
-    values: { speed: 0.85, reverbRoom: 0.55, reverbMix: 28, bassBoost: 2.5, trebleBoost: -1, warmth: 0.25, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 15 }
-  },
-  {
-    name: 'Daycore',
-    desc: 'Deep pitch drop, heavy reverb, subterranean bass — the moody aesthetic',
-    values: { speed: 0.75, reverbRoom: 0.7, reverbMix: 34, bassBoost: 3.5, trebleBoost: -3, warmth: 0.5, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  { 
-    name: 'Lo-Fi Bedroom',
-    desc: 'Warm analog saturation, rolled-off highs, cozy late-night vibe',
-    values: { speed: 0.9, reverbRoom: 0.45, reverbMix: 22, bassBoost: 3, trebleBoost: -4, warmth: 0.7, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  { 
-    name: 'Ethereal 8D',
-    desc: 'Slow orbit with spacious reverb — sounds like floating in a cathedral',
-    values: { speed: 0.88, reverbRoom: 0.75, reverbMix: 35, bassBoost: 1, trebleBoost: 0, warmth: 0.2, enable8D: true, orbitTime: 24, orbitDucking: 4, orbitWidening: 20 }
-  },
-  { 
-    name: 'Club 8D',
-    desc: 'Tighter orbit, punchy bass, minimal reverb — 8D that hits hard',
-    values: { speed: 0.95, reverbRoom: 0.3, reverbMix: 15, bassBoost: 4, trebleBoost: 1, warmth: 0.1, enable8D: true, orbitTime: 12, orbitDucking: 6, orbitWidening: 30 }
-  },
-  { 
-    name: 'Nightcore',
-    desc: 'Sped up, bright, and airy — anime edit energy',
-    values: { speed: 1.25, reverbRoom: 0.25, reverbMix: 12, bassBoost: -1, trebleBoost: 3, warmth: 0, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Vapor Wave',
-    desc: 'Extreme slow, heavy saturation, drenched in reverb — A E S T H E T I C',
-    values: { speed: 0.7, reverbRoom: 0.85, reverbMix: 44, bassBoost: 4, trebleBoost: -5, warmth: 0.8, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Clean + Subtle',
-    desc: 'Barely slowed, light reverb — just enough to make it feel dreamy',
-    values: { speed: 0.93, reverbRoom: 0.35, reverbMix: 18, bassBoost: 1, trebleBoost: 0, warmth: 0.1, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Sped-Up (TikTok)',
-    desc: 'Gentle speed-up, bright and crisp — the mainstream "sped up version" sound',
-    values: { speed: 1.15, reverbRoom: 0.3, reverbMix: 16, bassBoost: 0, trebleBoost: 1.5, warmth: 0.05, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Another Room',
-    desc: 'Muffled, rolled-off highs — like it’s playing in the next room',
-    values: { speed: 0.9, reverbRoom: 0.5, reverbMix: 30, bassBoost: 1, trebleBoost: -8, warmth: 0.15, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Phonk Drift',
-    desc: 'Heavy saturated low-end, tight and punchy — for drift & car edits',
-    values: { speed: 0.92, reverbRoom: 0.25, reverbMix: 12, bassBoost: 6, trebleBoost: 1, warmth: 0.45, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Arena Live',
-    desc: 'Big-venue reverb — imagine you’re standing at the concert',
-    values: { speed: 0.95, reverbRoom: 0.9, reverbMix: 32, bassBoost: 2, trebleBoost: -1, warmth: 0.1, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Sleep / Rain',
-    desc: 'Soft and hazy with rolled-off rumble — for hours-long sleep & study',
-    values: { speed: 0.82, reverbRoom: 0.8, reverbMix: 36, bassBoost: -1, trebleBoost: -3, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-
-  // ── Tamil-tuned presets ──
-  // Tamil melody/film vocals sit in the upper-mid with lots of breath (Sid Sriram,
-  // Chinmayi); the dark reverb tames harshness, so we keep treble neutral-to-bright
-  // to preserve vocal air, and avoid over-slowing which kills gamaka/melisma nuance.
-  {
-    name: 'Tamil Feel (Melody)',
-    category: 'Tamil',
-    desc: 'The love-failure / melody default — gentle slow, warm lush reverb, vocals kept forward (Po Nee Po, Kanave Kanave)',
-    values: { speed: 0.88, reverbRoom: 0.62, reverbMix: 30, bassBoost: 2.5, trebleBoost: 0.5, warmth: 0.3, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Sid Sriram Soul',
-    category: 'Tamil',
-    desc: 'Airy and spacious for breathy gospel-soul vocals — big reverb, extra air on top (Kalaavathi, Adiye, Ennodu Nee Irundhaal)',
-    values: { speed: 0.90, reverbRoom: 0.72, reverbMix: 34, bassBoost: 1.5, trebleBoost: 2, warmth: 0.15, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'A.R. Rahman Hall',
-    category: 'Tamil',
-    desc: 'Grand orchestral hall for string-led Rahman melodies — biggest reverb, balanced tone (Munbe Vaa, Uyire, Mannipaaya)',
-    values: { speed: 0.87, reverbRoom: 0.85, reverbMix: 36, bassBoost: 2, trebleBoost: 0, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Kuthu Slowed (Mass)',
-    category: 'Tamil',
-    desc: 'Keeps the groove on Anirudh mass/beat tracks — barely slowed, punchy bass, tight reverb (Vaathi Coming, Arabic Kuthu)',
-    values: { speed: 0.93, reverbRoom: 0.34, reverbMix: 16, bassBoost: 5, trebleBoost: 1, warmth: 0.2, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  },
-  {
-    name: 'Tamil Lofi Night',
-    category: 'Tamil',
-    desc: 'Cozy late-night Tamil lofi — warm saturation, softly rolled highs (Nenjukulle, Kannazhaga, Aaruyirae)',
-    values: { speed: 0.89, reverbRoom: 0.5, reverbMix: 24, bassBoost: 3, trebleBoost: -2.5, warmth: 0.55, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10 }
-  }
-]
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 export default function StepMaster({
   audioPath,
@@ -129,8 +30,15 @@ export default function StepMaster({
 }) {
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [activePreset, setActivePreset] = useState(null)
+  const [active8D, setActive8D] = useState(null)
   const [previewProgress, setPreviewProgress] = useState(0)
   const [previewStage, setPreviewStage] = useState('')
+
+  const apply8DPreset = (p) => {
+    setEnable8D(true)
+    setOrbitTime(p.orbitTime); setOrbitDucking(p.orbitDucking); setOrbitWidening(p.orbitWidening)
+    setActive8D(p.name); setActivePreset(null)
+  }
 
   const applyPreset = (preset) => {
     const v = preset.values
@@ -150,7 +58,7 @@ export default function StepMaster({
 
     const progressInterval = setInterval(async () => {
       try {
-        const pRes = await fetch(`http://127.0.0.1:8000/api/render-progress?job_id=${jobId}`)
+        const pRes = await fetch(`${API}/api/render-progress?job_id=${jobId}`)
         const pData = await pRes.json()
         setPreviewProgress(pData.progress || 0)
         setPreviewStage(pData.stage || '')
@@ -172,10 +80,10 @@ export default function StepMaster({
     formData.append('orbit_widening', orbitWidening / 100.0)
     try {
       const ts = Date.now()
-      const res = await fetch('http://127.0.0.1:8000/api/preview-audio', { method: 'POST', body: formData })
+      const res = await fetch(`${API}/api/preview-audio`, { method: 'POST', body: formData })
       const data = await res.json()
       if (data.status === 'success') {
-        setPreviewAudioUrl(`http://127.0.0.1:8000${data.audio_url}?t=${ts}`)
+        setPreviewAudioUrl(`${API}${data.audio_url}?t=${ts}`)
         setStatus('')
       } else {
         setStatus('Preview failed.')
@@ -188,170 +96,188 @@ export default function StepMaster({
   }
 
   return (
-    <div>
-      <div className="step-header">
-        <h2>Master Audio</h2>
-        <p>Shape the sound with effects, EQ, and spatial audio</p>
-      </div>
+    <Box>
+      <Box mb={4}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>Master Audio</Typography>
+        <Typography color="text.secondary">Shape the sound with effects, EQ, and spatial audio</Typography>
+      </Box>
 
-      {/* Presets (grouped by category) */}
-      {['Universal', 'Tamil'].map(cat => {
-        const group = PRESETS.filter(p => (p.category || 'Universal') === cat)
-        if (group.length === 0) return null
-        return (
-          <div key={cat} style={{marginBottom: '14px'}}>
-            <div style={{fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600}}>
-              {cat === 'Tamil' ? '🎬 Tamil' : 'Universal'}
-            </div>
-            <div className="preset-bar">
-              {group.map(p => (
-                <button
-                  key={p.name}
-                  className={`preset-pill ${activePreset === p.name ? 'active' : ''}`}
-                  onClick={() => applyPreset(p)}
-                  title={p.desc}
-                >{p.name}</button>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-      {activePreset && (
-        <p style={{fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '20px', marginTop: '-16px', fontStyle: 'italic'}}>
-          {PRESETS.find(p => p.name === activePreset)?.desc}
-        </p>
-      )}
+      {/* Presets */}
+      <Box mb={3}>
+        {['Universal', 'Tamil'].map(cat => {
+          const group = PRESETS.filter(p => (p.category || 'Universal') === cat)
+          if (group.length === 0) return null
+          return (
+            <Box key={cat} mb={2}>
+              <Typography variant="caption" color="text.secondary" fontWeight="bold" textTransform="uppercase" letterSpacing={1}>
+                {cat}
+              </Typography>
+              <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
+                {group.map(p => (
+                  <Chip
+                    key={p.name}
+                    label={p.name}
+                    clickable
+                    color={activePreset === p.name ? 'primary' : 'default'}
+                    variant={activePreset === p.name ? 'filled' : 'outlined'}
+                    onClick={() => applyPreset(p)}
+                  />
+                ))}
+              </Box>
+            </Box>
+          )
+        })}
+        {activePreset && (
+          <Typography variant="body2" color="text.secondary" fontStyle="italic" mt={1}>
+            {PRESETS.find(p => p.name === activePreset)?.desc}
+          </Typography>
+        )}
+      </Box>
 
       {/* Speed & Reverb */}
-      <div className="panel">
-        <div className="panel-title">Speed & Reverb</div>
-        <div className="panel-grid">
-          <div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Speed (Pitch & Tempo)</span>
-                <span className="control-value">{speed}x</span>
-              </div>
-              <input type="range" min="0.5" max="1.5" step="0.05"
-                value={speed} onChange={(e) => { setSpeed(e.target.value); setActivePreset(null) }} />
-            </div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Vintage Warmth</span>
-                <span className="control-value">{Math.round(warmth * 100)}%</span>
-              </div>
-              <input type="range" min="0" max="1" step="0.05"
-                value={warmth} onChange={(e) => { setWarmth(e.target.value); setActivePreset(null) }} />
-            </div>
-          </div>
-          <div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Room Size</span>
-                <span className="control-value">{Math.round(reverbRoom * 100)}%</span>
-              </div>
-              <input type="range" min="0" max="1" step="0.05"
-                value={reverbRoom} onChange={(e) => { setReverbRoom(e.target.value); setActivePreset(null) }} />
-            </div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Reverb Mix</span>
-                <span className="control-value">{reverbMix}%</span>
-              </div>
-              <input type="range" min="0" max="100" step="1"
-                value={reverbMix} onChange={(e) => { setReverbMix(e.target.value); setActivePreset(null) }} />
-            </div>
-          </div>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Speed & Reverb
+        </Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Speed (Pitch & Tempo)</Typography>
+                <Typography variant="body2" fontWeight="bold">{speed}x</Typography>
+              </Box>
+              <Slider min={0.5} max={1.5} step={0.05} value={speed} onChange={(e, val) => { setSpeed(val); setActivePreset(null) }} />
+            </Box>
+            <Box>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Vintage Warmth</Typography>
+                <Typography variant="body2" fontWeight="bold">{Math.round(warmth * 100)}%</Typography>
+              </Box>
+              <Slider min={0} max={1} step={0.05} value={warmth} onChange={(e, val) => { setWarmth(val); setActivePreset(null) }} />
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Room Size</Typography>
+                <Typography variant="body2" fontWeight="bold">{Math.round(reverbRoom * 100)}%</Typography>
+              </Box>
+              <Slider min={0} max={1} step={0.05} value={reverbRoom} onChange={(e, val) => { setReverbRoom(val); setActivePreset(null) }} />
+            </Box>
+            <Box>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Reverb Mix</Typography>
+                <Typography variant="body2" fontWeight="bold">{reverbMix}%</Typography>
+              </Box>
+              <Slider min={0} max={100} step={1} value={reverbMix} onChange={(e, val) => { setReverbMix(val); setActivePreset(null) }} />
+            </Box>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* EQ */}
-      <div className="panel">
-        <div className="panel-title">Equalizer</div>
-        <div className="panel-grid">
-          <div className="control-group">
-            <div className="control-label">
-              <span>Sub-Bass (150Hz)</span>
-              <span className="control-value">{bassBoost > 0 ? '+' : ''}{bassBoost} dB</span>
-            </div>
-            <input type="range" min="-10" max="10" step="0.5"
-              value={bassBoost} onChange={(e) => { setBassBoost(e.target.value); setActivePreset(null) }} />
-          </div>
-          <div className="control-group">
-            <div className="control-label">
-              <span>Air / Treble (8kHz)</span>
-              <span className="control-value">{trebleBoost > 0 ? '+' : ''}{trebleBoost} dB</span>
-            </div>
-            <input type="range" min="-10" max="10" step="0.5"
-              value={trebleBoost} onChange={(e) => { setTrebleBoost(e.target.value); setActivePreset(null) }} />
-          </div>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Equalizer
+        </Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Sub-Bass (150Hz)</Typography>
+              <Typography variant="body2" fontWeight="bold">{bassBoost > 0 ? '+' : ''}{bassBoost} dB</Typography>
+            </Box>
+            <Slider min={-10} max={10} step={0.5} value={bassBoost} onChange={(e, val) => { setBassBoost(val); setActivePreset(null) }} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Air / Treble (8kHz)</Typography>
+              <Typography variant="body2" fontWeight="bold">{trebleBoost > 0 ? '+' : ''}{trebleBoost} dB</Typography>
+            </Box>
+            <Slider min={-10} max={10} step={0.5} value={trebleBoost} onChange={(e, val) => { setTrebleBoost(val); setActivePreset(null) }} />
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* 8D */}
-      <div className="panel">
-        <div className="panel-title">Spatial 8D Audio</div>
-        <div 
-          className={`toggle-row ${enable8D ? 'on' : ''}`}
-          onClick={() => { setEnable8D(!enable8D); setActivePreset(null) }}
-        >
-          <span>Enable 8D Spatial Panning</span>
-          <div className="toggle-switch"></div>
-        </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="subtitle1" fontWeight="bold">Spatial 8D Audio</Typography>
+          <FormControlLabel
+            control={<Switch checked={enable8D} onChange={(e) => { setEnable8D(e.target.checked); setActivePreset(null); if (!e.target.checked) setActive8D(null) }} />}
+            label={enable8D ? "Enabled" : "Disabled"}
+          />
+        </Box>
+
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          Quick presets — one tap enables 8D and sets the orbit
+        </Typography>
+        <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
+          {EIGHTD_PRESETS.map(p => (
+            <Chip
+              key={p.name}
+              label={p.name}
+              clickable
+              size="small"
+              color={active8D === p.name ? 'primary' : 'default'}
+              variant={active8D === p.name ? 'filled' : 'outlined'}
+              onClick={() => apply8DPreset(p)}
+            />
+          ))}
+        </Box>
 
         {enable8D && (
-          <div className="expand-section">
-            <div className="control-group">
-              <div className="control-label">
-                <span>Orbit Speed</span>
-                <span className="control-value">{orbitTime}s</span>
-              </div>
-              <input type="range" min="5" max="40" step="1"
-                value={orbitTime} onChange={(e) => { setOrbitTime(e.target.value); setActivePreset(null) }} />
-            </div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Distance Ducking</span>
-                <span className="control-value">-{orbitDucking} dB</span>
-              </div>
-              <input type="range" min="0" max="15" step="0.5"
-                value={orbitDucking} onChange={(e) => { setOrbitDucking(e.target.value); setActivePreset(null) }} />
-            </div>
-            <div className="control-group">
-              <div className="control-label">
-                <span>Stereo Widening</span>
-                <span className="control-value">{orbitWidening}%</span>
-              </div>
-              <input type="range" min="0" max="50" step="1"
-                value={orbitWidening} onChange={(e) => { setOrbitWidening(e.target.value); setActivePreset(null) }} />
-            </div>
-          </div>
+          <Box mt={3} p={3} bgcolor="background.default" borderRadius={2} border={1} borderColor="divider">
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Orbit Speed</Typography>
+                <Typography variant="body2" fontWeight="bold">{orbitTime}s</Typography>
+              </Box>
+              <Slider min={5} max={40} step={1} value={orbitTime} onChange={(e, val) => { setOrbitTime(val); setActivePreset(null); setActive8D(null) }} />
+            </Box>
+            <Box mb={2}>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Distance Ducking</Typography>
+                <Typography variant="body2" fontWeight="bold">-{orbitDucking} dB</Typography>
+              </Box>
+              <Slider min={0} max={15} step={0.5} value={orbitDucking} onChange={(e, val) => { setOrbitDucking(val); setActivePreset(null); setActive8D(null) }} />
+            </Box>
+            <Box>
+              <Box display="flex" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">Stereo Widening</Typography>
+                <Typography variant="body2" fontWeight="bold">{orbitWidening}%</Typography>
+              </Box>
+              <Slider min={0} max={50} step={1} value={orbitWidening} onChange={(e, val) => { setOrbitWidening(val); setActivePreset(null); setActive8D(null) }} />
+            </Box>
+          </Box>
         )}
-      </div>
+      </Paper>
 
       {/* Preview */}
-      <button 
-        className="btn btn-primary btn-lg" 
+      <Button 
+        variant="contained" 
+        color="primary" 
+        size="large" 
+        fullWidth
         onClick={handlePreview}
         disabled={isPreviewing || !audioPath}
       >
-        {isPreviewing ? 'Rendering Preview...' : '▶  Render Audio Preview'}
-      </button>
+        {isPreviewing ? 'Rendering Preview...' : 'Render Audio Preview'}
+      </Button>
 
       {isPreviewing && (
-        <div className="render-progress">
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style={{width: `${previewProgress}%`, transition: 'width 0.3s ease'}}></div>
-          </div>
-          <div className="render-status">{STAGE_LABELS[previewStage] || 'Processing...'} {previewProgress}%</div>
-        </div>
+        <Box mt={3}>
+          <LinearProgress variant="determinate" value={previewProgress} sx={{ height: 8, borderRadius: 4, mb: 1 }} />
+          <Typography variant="body2" color="text.secondary">
+            {STAGE_LABELS[previewStage] || 'Processing...'} {previewProgress}%
+          </Typography>
+        </Box>
       )}
 
       {previewAudioUrl && (
-        <div className="audio-player-card">
-          <audio controls autoPlay src={previewAudioUrl} />
-        </div>
+        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  mt: 3, p: 2, borderRadius: 2 }}>
+          <audio controls autoPlay src={previewAudioUrl} style={{ width: '100%', height: 40 }} />
+        </Paper>
       )}
-    </div>
+    </Box>
   )
 }

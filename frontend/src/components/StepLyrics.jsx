@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
+import { Box, Typography, Paper, TextField, Button, ToggleButtonGroup, ToggleButton, Select, MenuItem, Slider, Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Grid, InputLabel, FormControl, Chip } from '@mui/material'
+import { FONT_PRESETS, BG_GRADIENTS } from '../presets'
+
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 export default function StepLyrics({
   lyrics, setLyrics, speed, previewAudioUrl, audioPath,
@@ -19,9 +23,18 @@ export default function StepLyrics({
   kenBurns, setKenBurns,
   grain, setGrain,
   vignette, setVignette,
+  gradientColors, setGradientColors,
   bgFile
 }) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeFont, setActiveFont] = useState(null)
+
+  const applyFontPreset = (p) => {
+    setFontFamily(p.font); setFontSize(p.size); setStrokeWidth(p.stroke)
+    setStrokeColor(p.strokeColor); setShadowOffset(p.shadow); setFontColor(p.color)
+    setTextTransform(p.transform); setActiveFont(p.name)
+  }
+  const activeGradient = gradientColors ? BG_GRADIENTS.find(g => JSON.stringify(g.colors) === JSON.stringify(gradientColors))?.name : null
   const [results, setResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -76,7 +89,7 @@ export default function StepLyrics({
     }
     setIsGenerating(true)
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/generate-lyrics?audio_path=${encodeURIComponent(audioPath)}`)
+      const res = await fetch(`${API}/api/generate-lyrics?audio_path=${encodeURIComponent(audioPath)}`)
       const data = await res.json()
       if (data.status === 'success') {
         setLyrics(data.lyrics)
@@ -91,7 +104,7 @@ export default function StepLyrics({
     if (!searchQuery.trim()) return
     setIsSearching(true)
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/search-lyrics?q=${encodeURIComponent(searchQuery)}`)
+      const res = await fetch(`${API}/api/search-lyrics?q=${encodeURIComponent(searchQuery)}`)
       const data = await res.json()
       if (data.status === 'success') {
         setResults(data.results.filter(r => r.syncedLyrics))
@@ -101,248 +114,53 @@ export default function StepLyrics({
   }
 
   return (
-    <div>
-      <div className="step-header">
-        <h2>Lyrics</h2>
-        <p>Search, paste, or edit synchronized lyrics — then preview them against your mastered audio</p>
-      </div>
+    <Box>
+      <Box mb={4}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>Lyrics</Typography>
+        <Typography color="text.secondary">Search, paste, or edit synchronized lyrics — then preview them against your mastered audio</Typography>
+      </Box>
 
       {speed != 1.0 && (
-        <div className="sync-notice">
-          <span>⚡</span>
-          Timestamps auto-adjusted to match your <strong>&nbsp;{speed}x&nbsp;</strong> speed. Preview below to verify sync.
-        </div>
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Timestamps auto-adjusted to match your <strong> {speed}x </strong> speed. Preview below to verify sync.
+        </Alert>
       )}
 
-      {/* Search */}
-      <div className="panel">
-        <div className="panel-title">Search Lyrics</div>
-        <div className="lyrics-search-row">
-          <input 
-            type="text" 
-            placeholder="Search by song name or artist..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <button className="btn" onClick={handleSearch} disabled={isSearching}>
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
-        </div>
+      {!previewAudioUrl && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          To preview lyrics sync, go back to Step 2 and render an audio preview first.
+        </Alert>
+      )}
 
-        {results.length > 0 && (
-          <div className="lyrics-results">
-            {results.map(r => (
-              <div key={r.id} className="lyrics-result-item">
-                <span>{r.trackName} — {r.artistName}</span>
-                <button className="btn" style={{padding: '4px 12px', fontSize: '0.8rem'}} onClick={() => {
-                  setLyrics(r.syncedLyrics)
-                  setResults([])
-                }}>Use</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="ai-generate-card" style={{marginTop: '20px', padding: '16px', background: 'rgba(255, 122, 0, 0.05)', border: '1px dashed var(--accent)', borderRadius: '8px', textAlign: 'center'}}>
-          <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px'}}>Can't find the lyrics online? Let AI listen to the track and transcribe it automatically.</p>
-          <button
-            className="btn"
-            onClick={handleGenerateAI}
-            disabled={isGenerating || !audioPath}
-            style={{background: 'var(--accent)', color: '#000', fontWeight: 'bold'}}
-          >
-            {isGenerating ? 'Listening & Transcribing... (This may take a minute)' : '✨ Auto-Generate Lyrics with AI'}
-          </button>
-        </div>
-      </div>
-
-      {/* Typography Controls */}
-      <div className="panel">
-        <div className="panel-title">Typography Settings</div>
-
-        <div className="control-group" style={{marginBottom: '15px'}}>
-          <label>Lyric Display Style</label>
-          <div style={{display: 'flex', gap: '10px'}}>
-            <button
-              className={`source-tab ${lyricStyle === 'single' ? 'active' : ''}`}
-              onClick={() => setLyricStyle('single')}
-              style={{flex: 1}}
-            >Single Line (Classic)</button>
-            <button
-              className={`source-tab ${lyricStyle === 'stack' ? 'active' : ''}`}
-              onClick={() => setLyricStyle('stack')}
-              style={{flex: 1}}
-            >3-Line Stack (Karaoke)</button>
-          </div>
-        </div>
-
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
-          <div className="control-group" style={{flex: 1, minWidth: '200px'}}>
-            <label>Font Family</label>
-            <select className="select-input" value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}>
-              <option value="Montserrat">Montserrat (Modern / Default)</option>
-              <option value="Avenir Next">Avenir Next (Clean / 7clouds)</option>
-              <option value="Futura">Futura (Edgy / Trap Nation)</option>
-              <option value="Didot">Didot (High-Fashion / Whitewine)</option>
-              <option value="Baskerville">Baskerville (Classic / Jaded)</option>
-              <option value="Helvetica Neue">Helvetica Neue (Clean UI)</option>
-              <option value="Arial">Arial (Basic)</option>
-              <option value="Impact">Impact (Meme)</option>
-            </select>
-          </div>
-          
-          <div className="control-group" style={{flex: 1, minWidth: '200px'}}>
-            <label>Font Size</label>
-            <input 
-              type="range" 
-              className="slider" 
-              value={fontSize} 
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              min="20" max="150"
-            />
-            <div className="slider-value">{fontSize}px</div>
-          </div>
-        </div>
-
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '15px'}}>
-          <div className="control-group" style={{flex: 1, minWidth: '150px'}}>
-            <label>Position X</label>
-            <input type="range" className="slider" value={posX} min="0" max="100" onChange={(e) => setPosX(Number(e.target.value))} />
-            <div className="slider-value">{posX}%</div>
-          </div>
-          
-          <div className="control-group" style={{flex: 1, minWidth: '150px'}}>
-            <label>Position Y</label>
-            <input type="range" className="slider" value={posY} min="0" max="100" onChange={(e) => setPosY(Number(e.target.value))} />
-            <div className="slider-value">{posY}%</div>
-          </div>
-        </div>
-
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '15px'}}>
-          <div className="control-group" style={{width: '80px'}}>
-            <label>Text Color</label>
-            <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)}
-              style={{width: '100%', height: '42px', padding: '2px', background: 'var(--panel-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer'}}
-            />
-          </div>
-
-          <div className="control-group" style={{width: '80px'}}>
-            <label>Stroke</label>
-            <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)}
-              style={{width: '100%', height: '42px', padding: '2px', background: 'var(--panel-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer'}}
-            />
-          </div>
-
-          <div className="control-group" style={{flex: 1, minWidth: '120px'}}>
-            <label>Stroke Width</label>
-            <input type="range" className="slider" value={strokeWidth} min="0" max="10" onChange={(e) => setStrokeWidth(Number(e.target.value))} />
-            <div className="slider-value">{strokeWidth}px</div>
-          </div>
-
-          <div className="control-group" style={{flex: 1, minWidth: '120px'}}>
-            <label>Shadow Offset</label>
-            <input type="range" className="slider" value={shadowOffset} min="0" max="20" onChange={(e) => setShadowOffset(Number(e.target.value))} />
-            <div className="slider-value">{shadowOffset}px</div>
-          </div>
-          
-          <div className="control-group" style={{width: '120px'}}>
-            <label>Format</label>
-            <select className="select-input" value={textTransform} onChange={(e) => setTextTransform(e.target.value)}>
-              <option value="uppercase">ALL CAPS</option>
-              <option value="none">Normal</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Background Style */}
-      <div className="panel">
-        <div className="panel-title">Background Style</div>
-
-        <div className="control-group" style={{marginBottom: '15px'}}>
-          <label>Background Source</label>
-          <div style={{display: 'flex', gap: '10px'}}>
-            <button
-              className={`source-tab ${bgMode === 'image' ? 'active' : ''}`}
-              onClick={() => setBgMode('image')}
-              style={{flex: 1}}
-            >🖼️ Your Image/Video</button>
-            <button
-              className={`source-tab ${bgMode === 'gradient' ? 'active' : ''}`}
-              onClick={() => setBgMode('gradient')}
-              style={{flex: 1}}
-            >🌈 Color Gradient<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>auto-matched to your image</span></button>
-          </div>
-        </div>
-
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
-          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
-            <label>Blur</label>
-            <input type="range" className="slider" value={bgBlur} min="0" max="40" onChange={(e) => setBgBlur(Number(e.target.value))} />
-            <div className="slider-value">{bgBlur}</div>
-          </div>
-          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
-            <label>Darken</label>
-            <input type="range" className="slider" value={bgDim} min="0" max="0.6" step="0.05" onChange={(e) => setBgDim(Number(e.target.value))} />
-            <div className="slider-value">{Math.round(bgDim * 100)}%</div>
-          </div>
-        </div>
-
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '15px'}}>
-          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
-            <label>Film Grain</label>
-            <input type="range" className="slider" value={grain} min="0" max="30" onChange={(e) => setGrain(Number(e.target.value))} />
-            <div className="slider-value">{grain}</div>
-          </div>
-          <div className="control-group" style={{flex: 1, minWidth: '160px'}}>
-            <label>Vignette</label>
-            <input type="range" className="slider" value={vignette} min="0" max="1" step="0.05" onChange={(e) => setVignette(Number(e.target.value))} />
-            <div className="slider-value">{Math.round(vignette * 100)}%</div>
-          </div>
-        </div>
-
-        <div
-          className={`toggle-row ${kenBurns ? 'on' : ''}`}
-          onClick={() => setKenBurns(!kenBurns)}
-          style={{marginTop: '15px'}}
-        >
-          <span>Ken Burns — slow zoom on still images</span>
-          <div className="toggle-switch"></div>
-        </div>
-      </div>
-
-      {/* Editor */}
-      <div className="panel">
-        <div className="panel-title">Lyrics Editor</div>
-        <textarea 
-          rows="10" 
-          value={lyrics}
-          onChange={(e) => setLyrics(e.target.value)}
-          placeholder={"[00:00.00] Paste your synced lyrics here..."}
-          style={{fontFamily: "'JetBrains Mono', monospace", fontSize: '0.85rem', lineHeight: '1.8'}}
-        />
-      </div>
-
-      {/* Audio + Lyrics Sync Preview */}
+      {/* Audio + Lyrics Sync Preview (Moved to Top) */}
       {previewAudioUrl && parsedLines.length > 0 && (
-        <div className="panel">
-          <div className="panel-title">🎧 Lyrics Sync Preview</div>
-          <div className="audio-player-card" style={{marginTop: 0, marginBottom: '16px'}}>
-            <audio ref={audioRef} controls src={previewAudioUrl} style={{width: '100%'}} />
-          </div>
+        <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={3}>
+            Live Preview
+          </Typography>
+          
+          <Box mb={3} p={2} bgcolor="background.default" borderRadius={2} border={1} borderColor="divider">
+            <audio ref={audioRef} controls src={previewAudioUrl} style={{width: '100%', height: 40}} />
+          </Box>
 
-          <div className="control-group" style={{
+          <Box sx={{
             display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
-            borderRadius: '8px', background: '#000', margin: '0 auto',
+            borderRadius: 2, background: '#000', mx: 'auto', border: 1, borderColor: 'divider',
             ...(aspectRatio === '9:16'
-              ? { height: '460px', aspectRatio: '9 / 16', maxWidth: '100%' }
-              : { width: '100%', aspectRatio: '16 / 9' })
+              ? { height: 500, aspectRatio: '9 / 16', maxWidth: '100%' }
+              : { width: '100%', aspectRatio: '16 / 9', maxHeight: 460 })
           }}>
-            <label style={{position: 'absolute', top: 10, left: 10, zIndex: 10, background: 'rgba(0,0,0,0.5)', padding: '4px 8px', borderRadius: '4px', color: '#fff', fontSize: '0.7rem'}}>Visual Layout Preview · {aspectRatio}</label>
+            <Box sx={{ position: 'absolute', top: 12, left: 12, zIndex: 10, bgcolor: 'rgba(0,0,0,0.6)', px: 1.5, py: 0.5, borderRadius: 1, backdropFilter: 'blur(4px)' }}>
+              <Typography variant="caption" color="white" fontWeight="bold">Visual Layout Preview · {aspectRatio}</Typography>
+            </Box>
             
-            {/* Background Media (with approximate effect preview) */}
-            {bgUrl && (() => {
+            {/* Chosen gradient background (overrides the image when picked) */}
+            {bgMode === 'gradient' && gradientColors && (
+              <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(160deg, ${gradientColors.join(', ')})` }} />
+            )}
+
+            {/* Background Media */}
+            {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
               const isVid = bgFile?.type?.startsWith('video/')
               const blurPx = bgMode === 'gradient' ? 45 : bgBlur * 0.45
               const baseScale = kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5)
@@ -351,32 +169,30 @@ export default function StepLyrics({
                 position: 'absolute', top: 0, left: 0,
                 filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
                 transform: `scale(${baseScale})`,
-                transformOrigin: 'center'
+                transformOrigin: 'center',
+                transition: kenBurns ? 'transform 20s ease-in-out' : 'none'
               }
-              const cls = kenBurns ? 'kenburns-anim' : undefined
               return isVid
-                ? <video className={cls} src={bgUrl} autoPlay loop muted style={mediaStyle} />
-                : <img className={cls} src={bgUrl} style={mediaStyle} />
+                ? <video src={bgUrl} autoPlay loop muted style={mediaStyle} />
+                : <img src={bgUrl} style={mediaStyle} />
             })()}
 
-            {/* Darken overlay */}
-            {bgDim > 0 && <div style={{position: 'absolute', inset: 0, background: '#000', opacity: bgDim}} />}
-            {/* Film grain overlay */}
-            {grain > 0 && <div style={{
+            {/* Overlays */}
+            {bgDim > 0 && <Box sx={{position: 'absolute', inset: 0, bgcolor: 'black', opacity: bgDim}} />}
+            {grain > 0 && <Box sx={{
               position: 'absolute', inset: 0, mixBlendMode: 'overlay',
               opacity: Math.min(grain / 30 * 0.65, 0.65),
               backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
             }} />}
-            {/* Vignette overlay */}
-            {vignette > 0 && <div style={{
+            {vignette > 0 && <Box sx={{
               position: 'absolute', inset: 0,
               background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette}) 100%)`
             }} />}
 
             {/* Visual Safe Area & Coordinate Mapping */}
-            <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0}}>
+            <Box sx={{position: 'absolute', inset: 0}}>
               {parsedLines.length > 0 && (
-                <div style={{
+                <Box sx={{
                   position: 'absolute',
                   top: `${posY}%`,
                   left: `${posX}%`,
@@ -393,9 +209,9 @@ export default function StepLyrics({
                     const line = parsedLines[lineIdx]
                     
                     return (
-                      <div key={lineIdx} style={{
+                      <Box key={lineIdx} sx={{
                         fontSize: offset === 0 ? `${Math.max(1, fontSize / 30)}rem` : `${Math.max(0.8, fontSize / 40)}rem`,
-                        fontWeight: '700',
+                        fontWeight: 700,
                         color: offset === 0 ? fontColor : 'rgba(255,255,255,0.4)',
                         textTransform: textTransform,
                         transition: 'all 0.3s ease',
@@ -408,29 +224,300 @@ export default function StepLyrics({
                         ) : 'none'
                       }}>
                         {line.text}
-                      </div>
+                      </Box>
                     )
                   })}
-                </div>
+                </Box>
               )}
-            </div>
-          </div>
-        </div>
+            </Box>
+          </Box>
+        </Paper>
       )}
 
       {previewAudioUrl && parsedLines.length === 0 && lyrics && (
-        <div className="sync-notice" style={{background: 'rgba(255,50,50,0.08)', borderColor: 'rgba(255,50,50,0.2)', color: '#ff5050'}}>
-          <span>⚠</span>
+        <Alert severity="error" sx={{ mb: 3 }}>
           No valid timestamps found in your lyrics. Make sure each line starts with [mm:ss.xx] format.
-        </div>
+        </Alert>
       )}
 
-      {!previewAudioUrl && (
-        <div className="sync-notice">
-          <span>💡</span>
-          To preview lyrics sync, go back to Step 2 and render an audio preview first.
-        </div>
-      )}
-    </div>
+      {/* Editor */}
+      <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Lyrics Editor
+        </Typography>
+        <TextField 
+          multiline
+          rows={6}
+          fullWidth
+          value={lyrics}
+          onChange={(e) => setLyrics(e.target.value)}
+          placeholder="[00:00.00] Paste your synced lyrics here..."
+          InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '0.85rem', lineHeight: 1.8 } }}
+        />
+      </Paper>
+
+      {/* Typography Controls */}
+      <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={3}>
+          Typography Settings
+        </Typography>
+
+        <Box mb={4}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>Font Presets</Typography>
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {FONT_PRESETS.map(p => (
+              <Chip
+                key={p.name}
+                label={p.name}
+                clickable
+                color={activeFont === p.name ? 'primary' : 'default'}
+                variant={activeFont === p.name ? 'filled' : 'outlined'}
+                onClick={() => applyFontPreset(p)}
+              />
+            ))}
+          </Box>
+        </Box>
+
+        <Box mb={4}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>Lyric Display Style</Typography>
+          <ToggleButtonGroup
+            value={lyricStyle}
+            exclusive
+            onChange={(e, val) => val && setLyricStyle(val)}
+            fullWidth
+            size="small"
+          >
+            <ToggleButton value="single">Single Line (Classic)</ToggleButton>
+            <ToggleButton value="stack">3-Line Stack (Karaoke)</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+
+        <Grid container spacing={4} mb={4}>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Font Family</InputLabel>
+              <Select value={fontFamily} label="Font Family" onChange={(e) => setFontFamily(e.target.value)}>
+                <MenuItem value="Montserrat">Montserrat (Modern / Default)</MenuItem>
+                <MenuItem value="Avenir Next">Avenir Next (Clean / 7clouds)</MenuItem>
+                <MenuItem value="Futura">Futura (Edgy / Trap Nation)</MenuItem>
+                <MenuItem value="Didot">Didot (High-Fashion / Whitewine)</MenuItem>
+                <MenuItem value="Baskerville">Baskerville (Classic / Jaded)</MenuItem>
+                <MenuItem value="Helvetica Neue">Helvetica Neue (Clean UI)</MenuItem>
+                <MenuItem value="Arial">Arial (Basic)</MenuItem>
+                <MenuItem value="Impact">Impact (Meme)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Font Size</Typography>
+              <Typography variant="body2" fontWeight="bold">{fontSize}px</Typography>
+            </Box>
+            <Slider min={20} max={150} value={fontSize} onChange={(e, val) => setFontSize(val)} />
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={4} mb={4}>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Position X</Typography>
+              <Typography variant="body2" fontWeight="bold">{posX}%</Typography>
+            </Box>
+            <Slider min={0} max={100} value={posX} onChange={(e, val) => setPosX(val)} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Position Y</Typography>
+              <Typography variant="body2" fontWeight="bold">{posY}%</Typography>
+            </Box>
+            <Slider min={0} max={100} value={posY} onChange={(e, val) => setPosY(val)} />
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={4}>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>Text Color</Typography>
+            <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} style={{ width: '100%', height: 42, cursor: 'pointer', border: '1px solid #444', borderRadius: 6 }} />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>Stroke Color</Typography>
+            <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} style={{ width: '100%', height: 42, cursor: 'pointer', border: '1px solid #444', borderRadius: 6 }} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Stroke Width</Typography>
+              <Typography variant="body2" fontWeight="bold">{strokeWidth}px</Typography>
+            </Box>
+            <Slider min={0} max={10} value={strokeWidth} onChange={(e, val) => setStrokeWidth(val)} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Shadow Offset</Typography>
+              <Typography variant="body2" fontWeight="bold">{shadowOffset}px</Typography>
+            </Box>
+            <Slider min={0} max={20} value={shadowOffset} onChange={(e, val) => setShadowOffset(val)} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Format</InputLabel>
+              <Select value={textTransform} label="Format" onChange={(e) => setTextTransform(e.target.value)}>
+                <MenuItem value="uppercase">ALL CAPS</MenuItem>
+                <MenuItem value="none">Normal</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Background Style */}
+      <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={3}>
+          Background Style
+        </Typography>
+
+        <Box mb={4}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>Background Source</Typography>
+          <ToggleButtonGroup
+            value={bgMode}
+            exclusive
+            onChange={(e, val) => val && setBgMode(val)}
+            fullWidth
+            size="small"
+          >
+            <ToggleButton value="image">Your Image/Video</ToggleButton>
+            <ToggleButton value="gradient">Color Gradient</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+
+        {bgMode === 'gradient' && (
+          <Box mb={4}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>Gradient Colour</Typography>
+            <Box display="flex" gap={1} flexWrap="wrap">
+              <Chip
+                label="Auto (from image)"
+                clickable
+                color={!gradientColors ? 'primary' : 'default'}
+                variant={!gradientColors ? 'filled' : 'outlined'}
+                onClick={() => setGradientColors(null)}
+              />
+              {BG_GRADIENTS.map(g => (
+                <Chip
+                  key={g.name}
+                  label={g.name}
+                  clickable
+                  variant={activeGradient === g.name ? 'filled' : 'outlined'}
+                  onClick={() => setGradientColors(g.colors)}
+                  sx={{
+                    fontWeight: 600,
+                    color: activeGradient === g.name ? '#fff' : 'text.primary',
+                    borderWidth: activeGradient === g.name ? 2 : 1,
+                    borderColor: activeGradient === g.name ? '#fff' : 'divider',
+                    background: `linear-gradient(135deg, ${g.colors.join(', ')})`,
+                    '&:hover': { background: `linear-gradient(135deg, ${g.colors.join(', ')})`, opacity: 0.9 }
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        <Grid container spacing={4} mb={4}>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Blur</Typography>
+              <Typography variant="body2" fontWeight="bold">{bgBlur}</Typography>
+            </Box>
+            <Slider min={0} max={40} value={bgBlur} onChange={(e, val) => setBgBlur(val)} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Darken</Typography>
+              <Typography variant="body2" fontWeight="bold">{Math.round(bgDim * 100)}%</Typography>
+            </Box>
+            <Slider min={0} max={0.6} step={0.05} value={bgDim} onChange={(e, val) => setBgDim(val)} />
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={4} mb={4}>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Film Grain</Typography>
+              <Typography variant="body2" fontWeight="bold">{grain}</Typography>
+            </Box>
+            <Slider min={0} max={30} value={grain} onChange={(e, val) => setGrain(val)} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography variant="body2" color="text.secondary">Vignette</Typography>
+              <Typography variant="body2" fontWeight="bold">{Math.round(vignette * 100)}%</Typography>
+            </Box>
+            <Slider min={0} max={1} step={0.05} value={vignette} onChange={(e, val) => setVignette(val)} />
+          </Grid>
+        </Grid>
+
+        <Box mt={2} p={2} bgcolor="background.default" borderRadius={2} border={1} borderColor="divider" display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="body2">Ken Burns — slow zoom on still images</Typography>
+          <ToggleButton
+            value="check"
+            selected={kenBurns}
+            onChange={() => setKenBurns(!kenBurns)}
+            size="small"
+            color="primary"
+          >
+            {kenBurns ? 'Enabled' : 'Disabled'}
+          </ToggleButton>
+        </Box>
+      </Paper>
+
+      {/* Search */}
+      <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Find Lyrics
+        </Typography>
+        <Box display="flex" gap={2} mb={2}>
+          <TextField 
+            fullWidth 
+            placeholder="Search by song name or artist..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            size="small"
+          />
+          <Button variant="contained" onClick={handleSearch} disabled={isSearching} sx={{ px: 4 }}>
+            {isSearching ? <CircularProgress size={24} /> : 'Search'}
+          </Button>
+        </Box>
+
+        {results.length > 0 && (
+          <List sx={{ maxHeight: 200, overflow: 'auto', bgcolor: 'background.default', borderRadius: 2, border: 1, borderColor: 'divider', mb: 2 }}>
+            {results.map(r => (
+              <ListItem key={r.id} divider>
+                <ListItemText primary={`${r.trackName} — ${r.artistName}`} />
+                <ListItemSecondaryAction>
+                  <Button variant="outlined" size="small" onClick={() => {
+                    setLyrics(r.syncedLyrics)
+                    setResults([])
+                  }}>Use</Button>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        )}
+
+        <Box mt={3} p={3} bgcolor="background.default" border={1} borderColor="divider" borderRadius={2} textAlign="center">
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Can't find the lyrics online? Let AI listen to the track and transcribe it automatically.
+          </Typography>
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleGenerateAI}
+            disabled={isGenerating || !audioPath}
+          >
+            {isGenerating ? 'Listening & Transcribing...' : 'Auto-Generate Lyrics with AI'}
+          </Button>
+        </Box>
+      </Paper>
+    </Box>
   )
 }

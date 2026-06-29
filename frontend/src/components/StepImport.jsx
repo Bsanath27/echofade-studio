@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Box, Typography, Paper, ToggleButtonGroup, ToggleButton, TextField, Button, CircularProgress } from '@mui/material'
+
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 
 export default function StepImport({
   audioPath, setAudioPath,
@@ -10,7 +13,8 @@ export default function StepImport({
   const [sourceMode, setSourceMode] = useState('youtube') // 'youtube' | 'local'
   const [url, setUrl] = useState('')
   const [isFetching, setIsFetching] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
+  const [dragOverAudio, setDragOverAudio] = useState(false)
+  const [dragOverBg, setDragOverBg] = useState(false)
 
   const handleYoutubeFetch = async () => {
     if (!url.trim()) return
@@ -19,7 +23,7 @@ export default function StepImport({
     const formData = new FormData()
     formData.append('url', url)
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/fetch-audio', {
+      const res = await fetch(`${API}/api/fetch-audio`, {
         method: 'POST', body: formData
       })
       const data = await res.json()
@@ -43,7 +47,7 @@ export default function StepImport({
     const formData = new FormData()
     formData.append('audio', file)
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/upload-audio', {
+      const res = await fetch(`${API}/api/upload-audio`, {
         method: 'POST', body: formData
       })
       const data = await res.json()
@@ -65,125 +69,161 @@ export default function StepImport({
   }
 
   return (
-    <div>
-      <div className="step-header">
-        <h2>Import Source</h2>
-        <p>Bring in your audio and background visual</p>
-      </div>
+    <Box>
+      <Box mb={4}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>Import Source</Typography>
+        <Typography color="text.secondary">Bring in your audio and background visual</Typography>
+      </Box>
 
       {/* Audio Source */}
-      <div className="panel">
-        <div className="panel-title">Audio Source</div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Audio Source
+        </Typography>
         
         {audioPath ? (
-          <div className="loaded-indicator">
-            <span>✓</span>
-            <span>{songTitle}</span>
-            <button className="change-btn" onClick={() => { setAudioPath(''); setSongTitle(''); }}>
+          <Box display="flex" alignItems="center" gap={2} p={2} bgcolor="success.dark" borderRadius={2} color="success.contrastText">
+            <Typography fontWeight="bold">✓</Typography>
+            <Typography flexGrow={1} fontWeight="medium">{songTitle}</Typography>
+            <Button variant="outlined" color="inherit" size="small" onClick={() => { setAudioPath(''); setSongTitle(''); }}>
               Change
-            </button>
-          </div>
+            </Button>
+          </Box>
         ) : (
-          <>
-            <div className="source-tabs">
-              <button 
-                className={`source-tab ${sourceMode === 'youtube' ? 'active' : ''}`}
-                onClick={() => setSourceMode('youtube')}
-              >YouTube URL</button>
-              <button 
-                className={`source-tab ${sourceMode === 'local' ? 'active' : ''}`}
-                onClick={() => setSourceMode('local')}
-              >Local File</button>
-            </div>
+          <Box>
+            <ToggleButtonGroup
+              value={sourceMode}
+              exclusive
+              onChange={(e, val) => val && setSourceMode(val)}
+              fullWidth
+              sx={{ mb: 3 }}
+              size="small"
+            >
+              <ToggleButton value="youtube">YouTube URL</ToggleButton>
+              <ToggleButton value="local">Local File</ToggleButton>
+            </ToggleButtonGroup>
 
             {sourceMode === 'youtube' ? (
-              <div>
-                <input 
-                  type="text" 
+              <Box>
+                <TextField 
+                  fullWidth 
                   placeholder="https://youtube.com/watch?v=..." 
                   value={url} 
                   onChange={(e) => setUrl(e.target.value)}
-                  style={{marginBottom: '12px'}}
+                  sx={{ mb: 2 }}
                 />
-                <button 
-                  className="btn btn-primary" 
-                  style={{width: '100%'}}
+                <Button 
+                  variant="contained" 
+                  fullWidth 
+                  size="large"
                   onClick={handleYoutubeFetch}
                   disabled={isFetching || !url.trim()}
                 >
-                  {isFetching ? 'Fetching...' : 'Fetch Audio'}
-                </button>
-              </div>
+                  {isFetching ? <CircularProgress size={24} /> : 'Fetch Audio'}
+                </Button>
+              </Box>
             ) : (
-              <div 
-                className={`drop-zone ${dragOver ? 'drag-over' : ''}`}
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
+              <Box 
+                sx={{
+                  border: '2px dashed',
+                  borderColor: dragOverAudio ? 'primary.main' : 'divider',
+                  borderRadius: 2,
+                  p: 5,
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  bgcolor: dragOverAudio ? 'action.hover' : 'background.paper',
+                  transition: 'all 0.2s'
+                }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverAudio(true) }}
+                onDragLeave={() => setDragOverAudio(false)}
                 onDrop={(e) => { 
-                  e.preventDefault(); setDragOver(false)
+                  e.preventDefault(); setDragOverAudio(false)
                   handleLocalUpload(e.dataTransfer.files[0])
                 }}
                 onClick={() => document.getElementById('audio-upload').click()}
               >
-                <div className="drop-zone-icon">🎵</div>
-                <div className="drop-zone-text">
-                  <strong>Drop your MP3 or WAV here</strong><br/>
-                  or click to browse
-                </div>
+                <Typography variant="h3" color="text.secondary" mb={2}>Music</Typography>
+                <Typography><strong>Drop your MP3 or WAV here</strong></Typography>
+                <Typography color="text.secondary">or click to browse</Typography>
                 <input 
                   id="audio-upload" type="file" accept="audio/*" 
                   style={{display: 'none'}}
                   onChange={(e) => handleLocalUpload(e.target.files[0])}
                 />
-              </div>
+              </Box>
             )}
-          </>
+          </Box>
         )}
-      </div>
+      </Paper>
 
       {/* Output Format */}
-      <div className="panel">
-        <div className="panel-title">Output Format</div>
-        <div className="source-tabs">
-          <button
-            className={`source-tab ${aspectRatio === '16:9' ? 'active' : ''}`}
-            onClick={() => setAspectRatio('16:9')}
-          >📺 Landscape 16:9<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>YouTube · 1920×1080</span></button>
-          <button
-            className={`source-tab ${aspectRatio === '9:16' ? 'active' : ''}`}
-            onClick={() => setAspectRatio('9:16')}
-          >📱 Vertical 9:16<br/><span style={{fontSize: '0.72rem', opacity: 0.7}}>Shorts · Reels · TikTok · 1080×1920</span></button>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Output Format
+        </Typography>
+        <ToggleButtonGroup
+          value={aspectRatio}
+          exclusive
+          onChange={(e, val) => val && setAspectRatio(val)}
+          fullWidth
+          size="large"
+        >
+          <ToggleButton value="16:9" sx={{ display: 'flex', flexDirection: 'column', p: 2 }}>
+            <Typography fontWeight="bold">Landscape 16:9</Typography>
+            <Typography variant="caption" color="text.secondary">YouTube · 1920x1080</Typography>
+          </ToggleButton>
+          <ToggleButton value="9:16" sx={{ display: 'flex', flexDirection: 'column', p: 2 }}>
+            <Typography fontWeight="bold">Vertical 9:16</Typography>
+            <Typography variant="caption" color="text.secondary">Shorts · Reels · TikTok · 1080x1920</Typography>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Paper>
 
       {/* Background Visual */}
-      <div className="panel">
-        <div className="panel-title">Background Visual</div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Background Visual
+        </Typography>
         
         {bgFile ? (
-          <div className="loaded-indicator">
-            <span>✓</span>
-            <span>{bgFile.name}</span>
-            <button className="change-btn" onClick={() => setBgFile(null)}>Change</button>
-          </div>
+          <Box display="flex" alignItems="center" gap={2} p={2} bgcolor="success.dark" borderRadius={2} color="success.contrastText">
+            <Typography fontWeight="bold">✓</Typography>
+            <Typography flexGrow={1} fontWeight="medium">{bgFile.name}</Typography>
+            <Button variant="outlined" color="inherit" size="small" onClick={() => setBgFile(null)}>Change</Button>
+          </Box>
         ) : (
-          <div 
-            className="drop-zone"
+          <Box 
+            sx={{
+              border: '2px dashed',
+              borderColor: dragOverBg ? 'primary.main' : 'divider',
+              borderRadius: 2,
+              p: 5,
+              textAlign: 'center',
+              cursor: 'pointer',
+              bgcolor: dragOverBg ? 'action.hover' : 'background.paper',
+              transition: 'all 0.2s'
+            }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverBg(true) }}
+            onDragLeave={() => setDragOverBg(false)}
+            onDrop={(e) => { 
+              e.preventDefault(); setDragOverBg(false)
+              setBgFile(e.dataTransfer.files[0])
+            }}
             onClick={() => document.getElementById('bg-upload').click()}
           >
-            <div className="drop-zone-icon">🖼️</div>
-            <div className="drop-zone-text">
-              <strong>Upload a background image or video</strong><br/>
-              {aspectRatio === '9:16' ? '9:16 recommended (1080×1920) — it will be center-cropped to fill' : '16:9 recommended (1920×1080) — it will be center-cropped to fill'}
-            </div>
+            <Typography variant="h3" color="text.secondary" mb={2}>Image</Typography>
+            <Typography><strong>Upload a background image or video</strong></Typography>
+            <Typography color="text.secondary">
+              {aspectRatio === '9:16' ? '9:16 recommended (1080x1920)' : '16:9 recommended (1920x1080)'} — it will be center-cropped to fill
+            </Typography>
             <input 
               id="bg-upload" type="file" accept="image/*,video/*" 
               style={{display: 'none'}}
               onChange={handleBgSelect}
             />
-          </div>
+          </Box>
         )}
-      </div>
-    </div>
+      </Paper>
+    </Box>
   )
 }

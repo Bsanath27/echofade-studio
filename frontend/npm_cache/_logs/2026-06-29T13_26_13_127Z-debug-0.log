@@ -1,0 +1,81 @@
+0 verbose cli /Users/sanathbs/.nvm/versions/node/v20.20.1/bin/node /Users/sanathbs/.nvm/versions/node/v20.20.1/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.20.1
+3 silly config load:file:/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/sanathbs/03_Dev_Lab/projects/Personal/youtube videos/lyric-video-generator/frontend/.npmrc
+5 silly config load:file:/Users/sanathbs/.npmrc
+6 verbose config error loading user config Error: EPERM: operation not permitted, open '/Users/sanathbs/.npmrc'
+6 verbose config     at async open (node:internal/fs/promises:634:25)
+6 verbose config     at async readFile (node:internal/fs/promises:1236:14)
+6 verbose config     at async #loadFile (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/node_modules/@npmcli/config/lib/index.js:589:5)
+6 verbose config     at async Config.load (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/node_modules/@npmcli/config/lib/index.js:250:5)
+6 verbose config     at async #load (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/lib/npm.js:98:5)
+6 verbose config     at async Npm.load (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/lib/npm.js:80:14)
+6 verbose config     at async module.exports (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/lib/cli/entry.js:42:37) {
+6 verbose config   errno: -1,
+6 verbose config   code: 'EPERM',
+6 verbose config   syscall: 'open',
+6 verbose config   path: '/Users/sanathbs/.npmrc'
+6 verbose config }
+7 silly config load:file:/Users/sanathbs/.nvm/versions/node/v20.20.1/etc/npmrc
+8 verbose title npm install @mui/material @emotion/react @emotion/styled @mui/icons-material
+9 verbose argv "install" "--cache" "./npm_cache" "@mui/material" "@emotion/react" "@emotion/styled" "@mui/icons-material"
+10 verbose logfile logs-max:10 dir:/Users/sanathbs/03_Dev_Lab/projects/Personal/youtube videos/lyric-video-generator/frontend/npm_cache/_logs/2026-06-29T13_26_13_127Z-
+11 verbose logfile /Users/sanathbs/03_Dev_Lab/projects/Personal/youtube videos/lyric-video-generator/frontend/npm_cache/_logs/2026-06-29T13_26_13_127Z-debug-0.log
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly logfile done cleaning log files
+14 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with ENOTFOUND
+15 silly idealTree buildDeps
+16 silly fetch manifest @mui/material@*
+17 silly packumentCache full:https://registry.npmjs.org/@mui%2fmaterial cache-miss
+18 http fetch GET https://registry.npmjs.org/@mui%2fmaterial attempt 1 failed with ENOTFOUND
+19 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
+20 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with ENOTFOUND
+21 http fetch GET https://registry.npmjs.org/@mui%2fmaterial attempt 2 failed with ENOTFOUND
+22 http fetch GET https://registry.npmjs.org/npm attempt 3 failed with ENOTFOUND
+23 http fetch GET https://registry.npmjs.org/@mui%2fmaterial attempt 3 failed with ENOTFOUND
+24 silly fetch manifest @emotion/react@*
+25 silly packumentCache full:https://registry.npmjs.org/@emotion%2freact cache-miss
+26 http fetch GET https://registry.npmjs.org/@emotion%2freact attempt 1 failed with ENOTFOUND
+27 http fetch GET https://registry.npmjs.org/@emotion%2freact attempt 2 failed with ENOTFOUND
+28 http fetch GET https://registry.npmjs.org/@emotion%2freact attempt 3 failed with ENOTFOUND
+29 silly fetch manifest @emotion/styled@*
+30 silly packumentCache full:https://registry.npmjs.org/@emotion%2fstyled cache-miss
+31 http fetch GET https://registry.npmjs.org/@emotion%2fstyled attempt 1 failed with ENOTFOUND
+32 http fetch GET https://registry.npmjs.org/@emotion%2fstyled attempt 2 failed with ENOTFOUND
+33 http fetch GET https://registry.npmjs.org/@emotion%2fstyled attempt 3 failed with ENOTFOUND
+34 silly fetch manifest @mui/icons-material@*
+35 silly packumentCache full:https://registry.npmjs.org/@mui%2ficons-material cache-miss
+36 http fetch GET https://registry.npmjs.org/@mui%2ficons-material attempt 1 failed with ENOTFOUND
+37 http fetch GET https://registry.npmjs.org/@mui%2ficons-material attempt 2 failed with ENOTFOUND
+38 http fetch GET https://registry.npmjs.org/@mui%2ficons-material attempt 3 failed with ENOTFOUND
+39 silly placeDep ROOT @emotion/react@ OK for: frontend@0.0.0 want: *
+40 silly placeDep ROOT @emotion/styled@ OK for: frontend@0.0.0 want: *
+41 silly placeDep ROOT @mui/icons-material@ OK for: frontend@0.0.0 want: *
+42 silly placeDep ROOT @mui/material@ OK for: frontend@0.0.0 want: *
+43 verbose type system
+44 verbose stack FetchError: request to https://registry.npmjs.org/@emotion%2freact failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+44 verbose stack     at ClientRequest.<anonymous> (/Users/sanathbs/.nvm/versions/node/v20.20.1/lib/node_modules/npm/node_modules/minipass-fetch/lib/index.js:130:14)
+44 verbose stack     at ClientRequest.emit (node:events:524:28)
+44 verbose stack     at emitErrorEvent (node:_http_client:101:11)
+44 verbose stack     at _destroy (node:_http_client:884:9)
+44 verbose stack     at onSocketNT (node:_http_client:904:5)
+44 verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+45 error code ENOTFOUND
+46 error syscall getaddrinfo
+47 error errno ENOTFOUND
+48 error network request to https://registry.npmjs.org/@emotion%2freact failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+49 error network This is a problem related to network connectivity.
+49 error network In most cases you are behind a proxy or have bad network settings.
+49 error network
+49 error network If you are behind a proxy, please make sure that the
+49 error network 'proxy' config is set properly.  See: 'npm help config'
+50 silly unfinished npm timer reify 1782739573288
+51 silly unfinished npm timer reify:loadTrees 1782739573309
+52 verbose cwd /Users/sanathbs/03_Dev_Lab/projects/Personal/youtube videos/lyric-video-generator/frontend
+53 verbose os Darwin 25.2.0
+54 verbose node v20.20.1
+55 verbose npm  v10.8.2
+56 verbose exit 1
+57 verbose code 1
+58 error A complete log of this run can be found in: /Users/sanathbs/03_Dev_Lab/projects/Personal/youtube videos/lyric-video-generator/frontend/npm_cache/_logs/2026-06-29T13_26_13_127Z-debug-0.log

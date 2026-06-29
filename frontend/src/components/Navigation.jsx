@@ -1,3 +1,5 @@
+import { Stepper, Step, StepLabel, Box, Typography } from '@mui/material'
+
 export default function Navigation({ currentStep, setStep, completedSteps }) {
   const steps = [
     { num: 1, label: 'Import', sublabel: 'Audio & visual source' },
@@ -7,31 +9,32 @@ export default function Navigation({ currentStep, setStep, completedSteps }) {
   ]
 
   return (
-    <nav className="step-indicator">
-      {steps.map((s, i) => {
-        const isCompleted = completedSteps.includes(s.num)
-        const isActive = currentStep === s.num
-        const canClick = isCompleted || s.num <= Math.max(...completedSteps, 0) + 1
+    <Box sx={{ mt: 2 }}>
+      <Stepper activeStep={currentStep - 1} orientation="vertical">
+        {steps.map((s, index) => {
+          const isCompleted = completedSteps.includes(s.num)
+          const isActive = currentStep === s.num
+          const canClick = isCompleted || s.num <= Math.max(...completedSteps, 0) + 1
 
-        return (
-          <div 
-            key={s.num}
-            className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${canClick ? 'clickable' : ''}`}
-            onClick={() => canClick && setStep(s.num)}
-          >
-            <div className="step-dot-col">
-              <div className="step-dot">
-                {isCompleted ? '✓' : s.num}
-              </div>
-              {i < steps.length - 1 && <div className="step-line"></div>}
-            </div>
-            <div className="step-info">
-              <div className="step-label">{s.label}</div>
-              <div className="step-sublabel">{s.sublabel}</div>
-            </div>
-          </div>
-        )
-      })}
-    </nav>
+          return (
+            <Step key={s.num} completed={isCompleted}>
+              <StepLabel 
+                onClick={() => canClick && setStep(s.num)}
+                sx={{ 
+                  cursor: canClick ? 'pointer' : 'default',
+                  '& .MuiStepLabel-label': {
+                    color: isActive ? 'text.primary' : 'text.secondary',
+                    fontWeight: isActive ? 'bold' : 'normal',
+                  }
+                }}
+              >
+                <Typography variant="body1">{s.label}</Typography>
+                <Typography variant="caption" color="text.secondary">{s.sublabel}</Typography>
+              </StepLabel>
+            </Step>
+          )
+        })}
+      </Stepper>
+    </Box>
   )
 }

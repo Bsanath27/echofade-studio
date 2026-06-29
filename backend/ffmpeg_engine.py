@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 import re
+import platform
 
 def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_color, pos_x, pos_y, text_transform, stroke_width, stroke_color, shadow_offset, speed, duration, bg_width, bg_height, lyric_style="single"):
     # Convert hex color (#RRGGBB) to ASS color (&HAABBGGRR)
@@ -12,17 +13,30 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
             return f"&H{alpha}{b}{g}{r}"
         return f"&H{alpha}FFFFFF"
 
-    # Map fonts for libass
-    font_map = {
-        "Montserrat": "Montserrat",
-        "Arial": "Arial",
-        "Helvetica Neue": "Trebuchet MS",
-        "Impact": "Impact",
-        "Avenir Next": "DIN Alternate",
-        "Futura": "DIN Alternate",
-        "Didot": "Georgia",
-        "Baskerville": "Georgia"
-    }
+    # Map fonts for libass based on OS
+    system = platform.system()
+    if system == "Darwin":
+        font_map = {
+            "Montserrat": "Montserrat",
+            "Arial": "Arial",
+            "Helvetica Neue": "Trebuchet MS",
+            "Impact": "Impact",
+            "Avenir Next": "DIN Alternate",
+            "Futura": "DIN Alternate",
+            "Didot": "Georgia",
+            "Baskerville": "Georgia"
+        }
+    else:
+        font_map = {
+            "Montserrat": "Montserrat",
+            "Arial": "Arial",
+            "Helvetica Neue": "Trebuchet MS",
+            "Impact": "Impact",
+            "Avenir Next": "Arial",
+            "Futura": "Arial",
+            "Didot": "Georgia",
+            "Baskerville": "Georgia"
+        }
     ass_font = font_map.get(font_family, "Arial")
     
     primary_col = hex_to_ass(font_color)
@@ -96,7 +110,7 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
                         shadow_offset=4, font_size=60, quality="final", lyric_style="single",
                         aspect_ratio="16:9",
                         bg_mode="image", bg_blur=0, bg_dim=0.0, ken_burns=False,
-                        grain=0, vignette_strength=0.0,
+                        grain=0, vignette_strength=0.0, gradient_colors=None,
                         progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
 
@@ -135,9 +149,15 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     use_gradient = (bg_mode == "gradient")
 
     if use_gradient:
-        # Build an animated, color-matched gradient as the background source.
-        from color_extract import extract_palette, hex_to_ffmpeg
-        palette = extract_palette(image_path, count=3)
+        from color_extract import hex_to_ffmpeg
+        # Use the user-chosen palette if provided, otherwise color-match from the image.
+        if gradient_colors:
+            palette = list(gradient_colors)
+            while len(palette) < 3:
+                palette.append(palette[-1])
+        else:
+            from color_extract import extract_palette
+            palette = extract_palette(image_path, count=3)
         c0 = hex_to_ffmpeg(palette[0])
         c1 = hex_to_ffmpeg(palette[-1])
         c2 = hex_to_ffmpeg(palette[len(palette) // 2])
@@ -179,14 +199,15 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     vf_stages.append(f"ass='{ass_path}'")
     vf_chain = ",".join(vf_stages)
 
+    vcodec = "h264_videotoolbox" if platform.system() == "Darwin" else "libx264"
     cmd.extend([
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-vf", vf_chain,
-        "-c:v", "h264_videotoolbox", 
+        "-c:v", vcodec, 
         "-pix_fmt", "yuv420p",
         "-preset", "ultrafast" if quality == "draft" else "fast",
-        "-b:v", "2M" if quality == "draft" else "10M",
+        "-b:v", "1M" if quality == "draft" else "3M",
         "-c:a", "aac",
         "-t", str(duration),
         output_path

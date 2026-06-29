@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Box, Typography, Paper, Grid, TextField, Button, LinearProgress, Select, MenuItem, FormControl, InputLabel, Divider } from '@mui/material'
 
 const STAGE_LABELS = {
   starting: 'Starting...',
@@ -10,6 +11,8 @@ const STAGE_LABELS = {
   done: 'Done!'
 }
 
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+
 export default function StepExport({
   audioPath, bgFile, lyrics, songTitle,
   speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth,
@@ -17,7 +20,7 @@ export default function StepExport({
   fontFamily, fontColor, fontSize,
   posX, posY, textTransform, strokeWidth, strokeColor, shadowOffset,
   lyricStyle, aspectRatio,
-  bgMode, bgBlur, bgDim, kenBurns, grain, vignette,
+  bgMode, bgBlur, bgDim, kenBurns, grain, vignette, gradientColors,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -69,6 +72,7 @@ export default function StepExport({
     formData.append('ken_burns', kenBurns)
     formData.append('grain', grain)
     formData.append('vignette_strength', vignette)
+    if (gradientColors) formData.append('gradient_colors', JSON.stringify(gradientColors))
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)
 
@@ -77,7 +81,7 @@ export default function StepExport({
 
     const progressInterval = setInterval(async () => {
       try {
-        const pRes = await fetch(`http://127.0.0.1:8000/api/render-progress?job_id=${jobId}`)
+        const pRes = await fetch(`${API}/api/render-progress?job_id=${jobId}`)
         const pData = await pRes.json()
         setRenderProgress(pData.progress || 0)
         setRenderStage(pData.stage || '')
@@ -85,10 +89,10 @@ export default function StepExport({
     }, 1000)
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/render', { method: 'POST', body: formData })
+      const res = await fetch(`${API}/api/render`, { method: 'POST', body: formData })
       const data = await res.json()
       if (data.status === 'success') {
-        setDownloadUrl(`http://127.0.0.1:8000${data.download_url}`)
+        setDownloadUrl(`${API}${data.download_url}`)
         setStatus('')
         setRenderProgress(100)
       } else {
@@ -102,124 +106,125 @@ export default function StepExport({
     setIsRendering(false)
   }
 
+  const SummaryItem = ({ label, value }) => (
+    <Box display="flex" justifyContent="space-between" py={1} borderBottom={1} borderColor="divider">
+      <Typography variant="body2" color="text.secondary">{label}</Typography>
+      <Typography variant="body2" fontWeight="bold">{value}</Typography>
+    </Box>
+  )
+
   return (
-    <div>
-      <div className="step-header">
-        <h2>Export Video</h2>
-        <p>Review your settings and render the final video</p>
-      </div>
+    <Box>
+      <Box mb={4}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>Export Video</Typography>
+        <Typography color="text.secondary">Review your settings and render the final video</Typography>
+      </Box>
 
       {/* Summary */}
-      <div className="panel">
-        <div className="panel-title">Settings Summary</div>
-        <div className="summary-grid">
-          <div className="summary-item">
-            <span className="label">Speed</span>
-            <span className="value">{speed}x</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Reverb Mix</span>
-            <span className="value">{reverbMix}%</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Room Size</span>
-            <span className="value">{Math.round(reverbRoom * 100)}%</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">8D Audio</span>
-            <span className="value">{enable8D ? 'On' : 'Off'}</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Format</span>
-            <span className="value">{aspectRatio === '9:16' ? 'Vertical 9:16' : 'Landscape 16:9'}</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Bass Boost</span>
-            <span className="value">{bassBoost > 0 ? '+' : ''}{bassBoost} dB</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Treble</span>
-            <span className="value">{trebleBoost > 0 ? '+' : ''}{trebleBoost} dB</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Warmth</span>
-            <span className="value">{Math.round(warmth * 100)}%</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Lyrics Lines</span>
-            <span className="value">{lyrics ? lyrics.split('\n').filter(l => l.trim()).length : 0}</span>
-          </div>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Settings Summary
+        </Typography>
+        <Grid container spacing={4}>
+          <Grid item xs={12} sm={6}>
+            <SummaryItem label="Speed" value={`${speed}x`} />
+            <SummaryItem label="Reverb Mix" value={`${reverbMix}%`} />
+            <SummaryItem label="Room Size" value={`${Math.round(reverbRoom * 100)}%`} />
+            <SummaryItem label="8D Audio" value={enable8D ? 'On' : 'Off'} />
+            <SummaryItem label="Format" value={aspectRatio === '9:16' ? 'Vertical 9:16' : 'Landscape 16:9'} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <SummaryItem label="Bass Boost" value={`${bassBoost > 0 ? '+' : ''}${bassBoost} dB`} />
+            <SummaryItem label="Treble" value={`${trebleBoost > 0 ? '+' : ''}${trebleBoost} dB`} />
+            <SummaryItem label="Warmth" value={`${Math.round(warmth * 100)}%`} />
+            <SummaryItem label="Lyrics Lines" value={lyrics ? lyrics.split('\n').filter(l => l.trim()).length : 0} />
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* Advanced Render Settings */}
-      <div className="panel" style={{marginTop: '20px'}}>
-        <div className="panel-title">Render Settings</div>
-        <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
-          <div className="control-group" style={{flex: 1, minWidth: '200px'}}>
-            <label>Quality</label>
-            <select className="select-input" value={renderQuality} onChange={(e) => setRenderQuality(e.target.value)}>
-              <option value="final">Final Master (1080p, 24fps)</option>
-              <option value="draft">Draft Preview (480p, 15fps)</option>
-            </select>
-          </div>
-          <div className="control-group" style={{flex: 2, minWidth: '300px'}}>
-            <label>Rendering Engine</label>
-            <select className="select-input" value={renderEngine} onChange={(e) => setRenderEngine(e.target.value)}>
-              <option value="ffmpeg">Ultra-Fast Burn-In (FFmpeg Subtitles) - Recommended</option>
-              <option value="moviepy">Legacy Frame-by-Frame (MoviePy) - Slow</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Render Settings
+        </Typography>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Quality</InputLabel>
+              <Select value={renderQuality} label="Quality" onChange={(e) => setRenderQuality(e.target.value)}>
+                <MenuItem value="final">Final Master (1080p, 24fps)</MenuItem>
+                <MenuItem value="draft">Draft Preview (480p, 15fps)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Rendering Engine</InputLabel>
+              <Select value={renderEngine} label="Rendering Engine" onChange={(e) => setRenderEngine(e.target.value)}>
+                <MenuItem value="ffmpeg">Ultra-Fast Burn-In (FFmpeg Subtitles) - Recommended</MenuItem>
+                <MenuItem value="moviepy">Legacy Frame-by-Frame (MoviePy) - Slow</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </Paper>
 
-      <div className="panel" style={{marginTop: '20px'}}>
-        <div className="panel-title">Filename</div>
-        <input 
-          type="text" 
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+          Filename
+        </Typography>
+        <TextField 
+          fullWidth
           placeholder="Output file name" 
           value={fileName}
           onChange={(e) => setFileName(e.target.value)}
+          size="small"
         />
-      </div>
+      </Paper>
 
-      {/* Render */}
-      <button 
-        className="btn btn-primary btn-lg" 
+      {/* Render Button */}
+      <Button 
+        variant="contained" 
+        color="primary" 
+        size="large" 
+        fullWidth
         onClick={handleRender}
         disabled={isRendering || !audioPath || !bgFile}
+        sx={{ mb: 3, py: 1.5, fontSize: '1.1rem' }}
       >
-        {isRendering ? 'Rendering Video...' : '🎬  Render Final Video'}
-      </button>
+        {isRendering ? 'Rendering Video...' : 'Render Final Video'}
+      </Button>
 
       {isRendering && (
-        <div className="render-progress">
-          <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style={{width: `${renderProgress}%`, transition: 'width 0.5s ease'}}></div>
-          </div>
-          <div className="render-status">{STAGE_LABELS[renderStage] || 'Processing...'} {renderProgress}%</div>
-        </div>
+        <Box mb={3}>
+          <LinearProgress variant="determinate" value={renderProgress} sx={{ height: 10, borderRadius: 5, mb: 1 }} />
+          <Typography variant="body2" color="text.secondary">
+            {STAGE_LABELS[renderStage] || 'Processing...'} {renderProgress}%
+          </Typography>
+        </Box>
       )}
 
       {downloadUrl && (
-        <div className="download-card">
-          <h3>✓ Video Rendered Successfully</h3>
+        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 4, borderRadius: 2, textAlign: 'center', bgcolor: 'success.dark', color: 'success.contrastText' }}>
+          <Typography variant="h5" fontWeight="bold" gutterBottom>
+            Video Rendered Successfully
+          </Typography>
           <video 
             controls 
             src={downloadUrl} 
-            style={{
-              width: '100%', 
-              maxHeight: '400px', 
-              borderRadius: '8px', 
-              marginBottom: '20px',
-              background: '#000'
-            }} 
+            style={{ width: '100%', maxHeight: '400px', borderRadius: '8px', marginBottom: '20px', background: '#000' }} 
           />
-          <a href={downloadUrl} download className="btn btn-primary" style={{display: 'inline-block', textDecoration: 'none', padding: '14px 32px'}}>
-            ⬇ Download Video
-          </a>
-        </div>
+          <Button 
+            variant="contained" 
+            color="inherit" 
+            href={downloadUrl} 
+            download 
+            sx={{ color: 'black', fontWeight: 'bold' }}
+          >
+            Download Video
+          </Button>
+        </Paper>
       )}
-    </div>
+    </Box>
   )
 }

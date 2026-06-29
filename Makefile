@@ -38,6 +38,8 @@ run: run-backend run-frontend
 	@echo "==> All services started in the background."
 	@echo "Run 'make stop' to shut them down."
 
+start: run
+
 stop:
 	@echo "==> Stopping services..."
 	@-if [ -f backend/.backend.pid ]; then kill `cat backend/.backend.pid` 2>/dev/null || true; rm backend/.backend.pid; fi

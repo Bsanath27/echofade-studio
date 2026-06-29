@@ -40,3 +40,61 @@ def download_audio(url: str, output_dir: str = "temp") -> Optional[Dict]:
     except Exception as e:
         print(f"Error downloading audio: {e}")
         return None
+
+def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp") -> Optional[Dict]:
+    """
+    Downloads media from a URL in the specified format (mp4, mp3, wav).
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
+    ydl_opts = {
+        'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
+        'quiet': True,
+        'no_warnings': True
+    }
+    
+    if format_type in ["mp3", "wav"]:
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': format_type,
+            'preferredquality': '192',
+        }]
+    else:
+        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        ydl_opts['merge_output_format'] = 'mp4'
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            title = info.get('title', 'unknown_title')
+            original_filepath = ydl.prepare_filename(info)
+            
+            if format_type in ["mp3", "wav"]:
+                filepath = os.path.splitext(original_filepath)[0] + f".{format_type}"
+            else:
+                filepath = os.path.splitext(original_filepath)[0] + ".mp4"
+                
+            return {
+                "title": title,
+                "filepath": filepath,
+                "thumbnail": info.get('thumbnail')
+            }
+    except Exception as e:
+        print(f"Error downloading media: {e}")
+        return None
+
+def extract_media_info(url: str) -> Optional[Dict]:
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return {
+                "title": info.get('title', 'Unknown'),
+                "thumbnail": info.get('thumbnail'),
+                "duration": info.get('duration', 0),
+                "uploader": info.get('uploader', 'Unknown')
+            }
+    except Exception as e:
+        print(f"Error fetching info: {e}")
+        return None

@@ -1,11 +1,57 @@
 import { useState, useMemo } from 'react'
+import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, Typography, ToggleButtonGroup, ToggleButton, Button, Alert } from '@mui/material'
+
 import Navigation from './components/Navigation'
 import StepImport from './components/StepImport'
 import StepMaster from './components/StepMaster'
 import StepLyrics from './components/StepLyrics'
 import StepExport from './components/StepExport'
+import BatchGrid from './components/BatchGrid'
+import Downloader from './components/Downloader'
+
+const darkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#ff7a00',
+    },
+    background: {
+      default: '#09090b', // Solid premium dark background
+      paper: '#18181b', // Slightly lighter for cards and drawer
+    },
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+  },
+  components: {
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          borderRight: '1px solid rgba(255,255,255,0.05)',
+        }
+      }
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        }
+      }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        }
+      }
+    }
+  }
+})
+
+const drawerWidth = 280
 
 function App() {
+  const [mode, setMode] = useState('studio') // 'studio' | 'batch' | 'downloader'
   const [currentStep, setCurrentStep] = useState(1)
   const [status, setStatus] = useState('')
 
@@ -38,6 +84,7 @@ function App() {
   const [kenBurns, setKenBurns] = useState(false)
   const [grain, setGrain] = useState(0)
   const [vignette, setVignette] = useState(0)
+  const [gradientColors, setGradientColors] = useState(null) // null = auto-extract from image
 
   // Audio mastering
   const [speed, setSpeed] = useState(1.0)
@@ -59,7 +106,6 @@ function App() {
   const completedSteps = useMemo(() => {
     const completed = []
     if (audioPath && bgFile) completed.push(1)
-    // Step 2 is "complete" once the user has visited it (we don't gate on preview)
     if (completed.includes(1) && currentStep > 2) completed.push(2)
     if (completed.includes(1) && currentStep > 3) completed.push(3)
     return completed
@@ -127,6 +173,7 @@ function App() {
           kenBurns={kenBurns} setKenBurns={setKenBurns}
           grain={grain} setGrain={setGrain}
           vignette={vignette} setVignette={setVignette}
+          gradientColors={gradientColors} setGradientColors={setGradientColors}
           bgFile={bgFile}
         />
       case 4:
@@ -140,6 +187,7 @@ function App() {
           strokeWidth={strokeWidth} strokeColor={strokeColor} shadowOffset={shadowOffset}
           lyricStyle={lyricStyle} aspectRatio={aspectRatio}
           bgMode={bgMode} bgBlur={bgBlur} bgDim={bgDim} kenBurns={kenBurns} grain={grain} vignette={vignette}
+          gradientColors={gradientColors}
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}
@@ -150,53 +198,82 @@ function App() {
   }
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <h1>Antigravity Studio</h1>
-          <p>Lyric Video Generator</p>
-        </div>
-        <Navigation currentStep={currentStep} setStep={setCurrentStep} completedSteps={completedSteps} />
-      </aside>
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        <Drawer
+          variant="permanent"
+          sx={{
+            width: drawerWidth,
+            flexShrink: 0,
+            '& .MuiDrawer-paper': { width: drawerWidth, boxSizing: 'border-box', p: 3 },
+          }}
+        >
+          <Box mb={4}>
+            <Typography variant="h6" fontWeight="bold">Antigravity Studio</Typography>
+            <Typography variant="caption" color="text.secondary">Lyric Video Generator</Typography>
+          </Box>
 
-      <main className="workspace">
-        <div className="workspace-inner">
-          {status && (
-            <div style={{
-              padding: '12px 16px', background: 'var(--accent-subtle)',
-              border: '1px solid rgba(255,122,0,0.2)', borderRadius: '8px',
-              marginBottom: '24px', color: 'var(--accent)', fontSize: '0.9rem', fontWeight: '500'
-            }}>{status}</div>
+          <ToggleButtonGroup
+            value={mode}
+            exclusive
+            onChange={(e, newMode) => { if (newMode) setMode(newMode) }}
+            aria-label="app mode"
+            fullWidth
+            sx={{ mb: 4 }}
+            size="small"
+          >
+            <ToggleButton value="studio">Studio</ToggleButton>
+            <ToggleButton value="batch">Batch</ToggleButton>
+            <ToggleButton value="downloader">Download</ToggleButton>
+          </ToggleButtonGroup>
+
+          {mode === 'studio' && (
+            <Navigation currentStep={currentStep} setStep={setCurrentStep} completedSteps={completedSteps} />
           )}
+        </Drawer>
 
-          {renderStep()}
-
-          {/* Bottom Nav */}
-          {currentStep < 4 && (
-            <div className="bottom-nav">
-              <div>
-                {currentStep > 1 && (
-                  <button className="btn" onClick={goBack}>← Back</button>
+        <Box component="main" sx={{ flexGrow: 1, p: { xs: 3, md: 6 }, overflowY: 'auto' }}>
+          <Box maxWidth={mode === 'batch' ? 1280 : mode === 'downloader' ? 720 : 900} mx="auto">
+            {mode === 'batch' ? (
+              <BatchGrid />
+            ) : mode === 'downloader' ? (
+              <Downloader />
+            ) : (
+              <>
+                {status && (
+                  <Alert severity="info" sx={{ mb: 3 }}>{status}</Alert>
                 )}
-              </div>
-              <button 
-                className="btn btn-primary" 
-                onClick={goNext}
-                disabled={!canGoNext()}
-              >
-                Next →
-              </button>
-            </div>
-          )}
-          {currentStep === 4 && (
-            <div className="bottom-nav">
-              <button className="btn" onClick={goBack}>← Back to Lyrics</button>
-              <div></div>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+
+                {renderStep()}
+
+                {/* Bottom Nav */}
+                <Box mt={4} pt={3} borderTop={1} borderColor="divider" display="flex" justifyContent="space-between">
+                  <Box>
+                    {currentStep > 1 && currentStep < 4 && (
+                      <Button variant="outlined" onClick={goBack}>Back</Button>
+                    )}
+                    {currentStep === 4 && (
+                      <Button variant="outlined" onClick={goBack}>Back to Lyrics</Button>
+                    )}
+                  </Box>
+                  {currentStep < 4 && (
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      onClick={goNext}
+                      disabled={!canGoNext()}
+                    >
+                      Next
+                    </Button>
+                  )}
+                </Box>
+              </>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </ThemeProvider>
   )
 }
 

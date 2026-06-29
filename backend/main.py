@@ -11,9 +11,18 @@ import json
 import uuid
 import subprocess
 import asyncio
+import threading
+import queue
+import re
+from PIL import Image
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
 from proglog import ProgressBarLogger
 
-from downloader import download_audio
+from downloader import download_audio, download_media, extract_media_info
 from lyrics_extractor import extract_lyrics, parse_lrc
 from audio_processor import apply_audio_effects
 from video_composer import create_video
@@ -77,6 +86,140 @@ class RenderLogger(ProgressBarLogger):
 
 app.mount("/files", StaticFiles(directory=TEMP_DIR), name="files")
 
+
+def _sanitize_filename(name):
+    cleaned = re.sub(r'[^a-zA-Z0-9_\-() ]', '', name).strip()
+    return cleaned or "lyric_video"
+
+
+def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, progress_file):
+    """Shared render core used by both the single-render endpoint and the batch
+    worker. `settings` is in apply_audio_effects-native units (reverb_mix,
+    vintage_warmth, orbit_widening all 0-1). Audio mastering fills 0-15% of the
+    progress bar, video render fills 15-100%. Returns dict with video/download URLs.
+    """
+    from video_composer import create_video
+    from ffmpeg_engine import create_video_ffmpeg
+
+    s = settings
+    lyrics_data = parse_lrc(raw_lrc)
+
+    # Convert HEIC to JPG using Pillow (cross-platform)
+    image_ext = image_path.lower().split(".")[-1]
+    if image_ext in ['heic', 'heif']:
+        jpg_path = os.path.join(job_dir, "bg_image.jpg")
+        try:
+            Image.open(image_path).convert('RGB').save(jpg_path, "JPEG")
+            image_path = jpg_path
+        except Exception as e:
+            print(f"Failed to convert HEIC to JPG: {e}")
+
+    # 1. Audio mastering (0-15%)
+    processed_audio_path = os.path.join(job_dir, "processed_audio.wav")
+    apply_audio_effects(
+        input_path=audio_path,
+        output_path=processed_audio_path,
+        speed=s['speed'],
+        reverb_room_size=s['reverb_room_size'],
+        reverb_mix=s['reverb_mix'],
+        bass_boost_db=s['bass_boost_db'],
+        treble_boost_db=s['treble_boost_db'],
+        vintage_warmth=s['vintage_warmth'],
+        enable_8d=s['enable_8d'],
+        orbit_time=s['orbit_time'],
+        orbit_ducking=s['orbit_ducking'],
+        orbit_widening=s['orbit_widening'],
+        progress_file=progress_file,
+        progress_start=0,
+        progress_end=15,
+    )
+
+    # 2. Video render (15-100%)
+    final_filename = s['file_name'] if s['file_name'].lower().endswith('.mp4') else f"{s['file_name']}.mp4"
+    output_path = os.path.join(job_dir, final_filename)
+    composer_kwargs = dict(
+        image_path=image_path, audio_path=processed_audio_path, lyrics_data=lyrics_data,
+        output_path=output_path, speed=s['speed'], font_family=s['font_family'],
+        font_color=s['font_color'], pos_x=s['pos_x'], pos_y=s['pos_y'],
+        text_transform=s['text_transform'], stroke_width=s['stroke_width'],
+        stroke_color=s['stroke_color'], shadow_offset=s['shadow_offset'],
+        font_size=s['font_size'], quality=s['quality'], aspect_ratio=s['aspect_ratio'],
+    )
+    if s['engine'] == "ffmpeg":
+        create_video_ffmpeg(
+            **composer_kwargs, lyric_style=s['lyric_style'], bg_mode=s['bg_mode'],
+            bg_blur=s['bg_blur'], bg_dim=s['bg_dim'], ken_burns=s['ken_burns'],
+            grain=s['grain'], vignette_strength=s['vignette_strength'],
+            gradient_colors=s.get('gradient_colors'),
+            progress_file=progress_file, progress_start=15, progress_end=100,
+        )
+    else:
+        create_video(**composer_kwargs, logger=RenderLogger(progress_file, progress_start=15, progress_end=100))
+
+    with open(progress_file, 'w') as f:
+        json.dump({"progress": 100, "stage": "done"}, f)
+
+    # Copy to the shared outputs folder (dedupe by job_id if name collides)
+    ROOT_OUTPUTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "outputs"))
+    os.makedirs(ROOT_OUTPUTS_DIR, exist_ok=True)
+    final_output_path = os.path.join(ROOT_OUTPUTS_DIR, final_filename)
+    if os.path.exists(final_output_path):
+        base, ext = os.path.splitext(final_filename)
+        final_output_path = os.path.join(ROOT_OUTPUTS_DIR, f"{base}_{job_id}{ext}")
+    shutil.copyfile(output_path, final_output_path)
+
+    prune_old_jobs()
+    url_path = quote(f"jobs/{job_id}/{final_filename}", safe='/')
+    return {"video_url": f"/files/{url_path}", "download_url": f"/api/download/{url_path}"}
+
+
+# ── Batch render queue (sequential worker) ──
+BATCH_JOBS = {}            # job_id -> status dict
+BATCH_QUEUE = queue.Queue()
+BATCH_LOCK = threading.Lock()
+
+
+def _update_job(job_id, **kw):
+    with BATCH_LOCK:
+        job = BATCH_JOBS.setdefault(job_id, {"id": job_id})
+        job.update(kw)
+
+
+def _batch_worker():
+    while True:
+        spec = BATCH_QUEUE.get()
+        job_id = spec["job_id"]
+        try:
+            _update_job(job_id, status="downloading", stage="Downloading audio", progress=0)
+            info = download_audio(spec["link"], output_dir=TEMP_DIR)
+            if not info:
+                _update_job(job_id, status="error", stage="Download failed", error="Could not download audio from link")
+                continue
+
+            title = info.get("title", "Untitled")
+            _update_job(job_id, title=title, status="fetching_lyrics", stage="Fetching lyrics")
+            raw_lrc, _ = extract_lyrics(info["title"], info["artist"])
+            raw_lrc = raw_lrc or ""
+
+            job_dir = os.path.join(JOBS_DIR, job_id)
+            os.makedirs(job_dir, exist_ok=True)
+            progress_file = os.path.join(TEMP_DIR, f"{job_id}_progress.json")
+
+            settings = dict(spec["settings"])
+            settings["file_name"] = f"{_sanitize_filename(title)} (Slowed + Reverb)"
+
+            _update_job(job_id, status="rendering", stage="Rendering", progress=0, has_lyrics=bool(raw_lrc))
+            result = execute_render(job_id, job_dir, info["filepath"], raw_lrc, spec["image_path"], settings, progress_file)
+            _update_job(job_id, status="done", stage="Done", progress=100, **result)
+        except Exception as e:
+            _update_job(job_id, status="error", stage="Error", error=str(e))
+        finally:
+            BATCH_QUEUE.task_done()
+
+
+threading.Thread(target=_batch_worker, daemon=True).start()
+
+
 class LyricsRequest(BaseModel):
     url: str
 
@@ -138,6 +281,29 @@ def search_lyrics(q: str):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/api/downloader/info")
+def downloader_info(url: str):
+    info = extract_media_info(url)
+    if info:
+        return {"status": "success", "info": info}
+    return JSONResponse({"status": "error", "message": "Failed to fetch metadata"}, status_code=400)
+
+@app.post("/api/downloader/fetch")
+async def downloader_fetch(url: str = Form(...), format: str = Form("mp4")):
+    # Since download blocks, we run it in a thread to keep FastAPI responsive
+    result = await asyncio.to_thread(download_media, url, format, TEMP_DIR)
+    if result:
+        filename = os.path.basename(result["filepath"])
+        
+        # Optionally copy to root outputs folder for organization
+        ROOT_OUTPUTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "outputs"))
+        os.makedirs(ROOT_OUTPUTS_DIR, exist_ok=True)
+        shutil.copyfile(result["filepath"], os.path.join(ROOT_OUTPUTS_DIR, filename))
+        
+        url_path = quote(filename, safe='/')
+        return {"status": "success", "download_url": f"/api/download/{url_path}"}
+    return JSONResponse({"status": "error", "message": "Failed to download media"}, status_code=500)
+
 @app.get("/api/render-progress")
 def get_render_progress(job_id: str = None):
     try:
@@ -148,7 +314,7 @@ def get_render_progress(job_id: str = None):
         return {"progress": 0}
 
 @app.post("/api/preview-audio")
-async def preview_audio(
+def preview_audio(
     audio_path: str = Form(...),
     job_id: str = Form(None),
     speed: float = Form(1.0),
@@ -238,7 +404,7 @@ async def generate_lyrics(audio_path: str):
         return JSONResponse({"status": "error", "message": f"Transcription failed: {str(e)}"}, status_code=500)
 
 @app.post("/api/render")
-async def render_video(
+def render_video(
     audio_path: str = Form(...),
     raw_lrc: str = Form(...),
     speed: float = Form(1.0),
@@ -270,13 +436,12 @@ async def render_video(
     ken_burns: bool = Form(False),
     grain: float = Form(0.0),
     vignette_strength: float = Form(0.0),
+    gradient_colors: str = Form(None),
     file_name: str = Form("final_lyric_video"),
     job_id: str = Form(None),
     image: UploadFile = File(...)
 ):
     try:
-        # 0. Set up an isolated job directory so concurrent/successive renders
-        # never clobber each other's inputs or outputs.
         if not job_id:
             job_id = uuid.uuid4().hex[:12]
         job_dir = os.path.join(JOBS_DIR, job_id)
@@ -286,96 +451,101 @@ async def render_video(
         with open(progress_file, 'w') as f:
             json.dump({"progress": 0, "stage": "starting"}, f)
 
-        lyrics_data = parse_lrc(raw_lrc)
-
-        # 1. Save uploaded image into the job directory
+        # Save uploaded background into the job directory
         image_ext = image.filename.split(".")[-1].lower()
         image_path = os.path.join(job_dir, f"bg_image.{image_ext}")
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
 
-        # Convert HEIC to JPG using macOS native sips
-        if image_ext in ['heic', 'heif']:
-            jpg_path = os.path.join(job_dir, "bg_image.jpg")
-            subprocess.run(["sips", "-s", "format", "jpeg", image_path, "--out", jpg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-            image_path = jpg_path
-
-        # 2. Process Audio (occupies the first 15% of the progress bar)
-        print("Processing audio...")
-        processed_audio_path = os.path.join(job_dir, "processed_audio.wav")
-        apply_audio_effects(
-            input_path=audio_path,
-            output_path=processed_audio_path,
-            speed=speed,
-            reverb_room_size=reverb_room_size,
-            reverb_mix=reverb_mix / 100.0,
-            bass_boost_db=bass_boost_db,
-            treble_boost_db=treble_boost_db,
-            vintage_warmth=vintage_warmth / 100.0,
-            enable_8d=enable_8d,
-            orbit_time=orbit_time,
-            orbit_ducking=orbit_ducking,
-            orbit_widening=orbit_widening,
-            progress_file=progress_file,
-            progress_start=0,
-            progress_end=15
+        # Convert frontend units to apply_audio_effects-native units at the boundary:
+        # reverb_mix arrives 0-100, vintage_warmth arrives 0-1, orbit_widening arrives 0-1.
+        settings = dict(
+            speed=speed, reverb_room_size=reverb_room_size, reverb_mix=reverb_mix / 100.0,
+            bass_boost_db=bass_boost_db, treble_boost_db=treble_boost_db, vintage_warmth=vintage_warmth,
+            enable_8d=enable_8d, orbit_time=orbit_time, orbit_ducking=orbit_ducking, orbit_widening=orbit_widening,
+            font_family=font_family, font_color=font_color, pos_x=pos_x, pos_y=pos_y,
+            text_transform=text_transform, stroke_width=stroke_width, stroke_color=stroke_color,
+            shadow_offset=shadow_offset, font_size=font_size, quality=quality, engine=engine,
+            lyric_style=lyric_style, aspect_ratio=aspect_ratio, bg_mode=bg_mode, bg_blur=bg_blur,
+            bg_dim=bg_dim, ken_burns=ken_burns, grain=grain, vignette_strength=vignette_strength,
+            gradient_colors=json.loads(gradient_colors) if gradient_colors else None,
+            file_name=file_name,
         )
 
-        # 3. Render video (occupies the remaining 85%)
-        from video_composer import create_video
-        from ffmpeg_engine import create_video_ffmpeg
-
-        final_filename = file_name if file_name.lower().endswith('.mp4') else f"{file_name}.mp4"
-        output_path = os.path.join(job_dir, final_filename)
-
-        composer_kwargs = dict(
-            image_path=image_path,
-            audio_path=processed_audio_path,
-            lyrics_data=lyrics_data,
-            output_path=output_path,
-            speed=speed,
-            font_family=font_family,
-            font_color=font_color,
-            pos_x=pos_x,
-            pos_y=pos_y,
-            text_transform=text_transform,
-            stroke_width=stroke_width,
-            stroke_color=stroke_color,
-            shadow_offset=shadow_offset,
-            font_size=font_size,
-            quality=quality,
-            aspect_ratio=aspect_ratio,
-        )
-
-        if engine == "ffmpeg":
-            create_video_ffmpeg(
-                **composer_kwargs,
-                lyric_style=lyric_style,
-                bg_mode=bg_mode,
-                bg_blur=bg_blur,
-                bg_dim=bg_dim,
-                ken_burns=ken_burns,
-                grain=grain,
-                vignette_strength=vignette_strength,
-                progress_file=progress_file,
-                progress_start=15,
-                progress_end=100
-            )
-        else:
-            create_video(
-                **composer_kwargs,
-                logger=RenderLogger(progress_file, progress_start=15, progress_end=100)
-            )
-
-        with open(progress_file, 'w') as f:
-            json.dump({"progress": 100, "stage": "done"}, f)
-
-        prune_old_jobs()
-
-        url_path = quote(f"jobs/{job_id}/{final_filename}", safe='/')
-        return {"status": "success", "video_url": f"/files/{url_path}", "download_url": f"/api/download/{url_path}"}
+        result = execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, progress_file)
+        return {"status": "success", **result}
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+# Background-style shortcuts for the batch grid (keeps per-row setup fast)
+BATCH_BG_STYLES = {
+    "plain":     dict(bg_mode="image",    bg_blur=0,  bg_dim=0.0,  ken_burns=False, grain=0,  vignette_strength=0.0),
+    "cinematic": dict(bg_mode="image",    bg_blur=8,  bg_dim=0.3,  ken_burns=True,  grain=6,  vignette_strength=0.4),
+    "gradient":  dict(bg_mode="gradient", bg_blur=0,  bg_dim=0.0,  ken_burns=False, grain=0,  vignette_strength=0.3),
+}
+
+
+@app.post("/api/batch/submit")
+async def batch_submit(
+    link: str = Form(...),
+    preset_values: str = Form(...),   # JSON of {speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth, enable8D, orbitTime, orbitDucking, orbitWidening}
+    aspect_ratio: str = Form("16:9"),
+    quality: str = Form("final"),
+    bg_style: str = Form("cinematic"),
+    lyric_style: str = Form("single"),
+    image: UploadFile = File(...),
+):
+    job_id = uuid.uuid4().hex[:12]
+    job_dir = os.path.join(JOBS_DIR, job_id)
+    os.makedirs(job_dir, exist_ok=True)
+
+    image_ext = image.filename.split(".")[-1].lower()
+    image_path = os.path.join(job_dir, f"bg_image.{image_ext}")
+    with open(image_path, "wb") as buffer:
+        shutil.copyfileobj(image.file, buffer)
+
+    pv = json.loads(preset_values)
+    bg = BATCH_BG_STYLES.get(bg_style, BATCH_BG_STYLES["cinematic"])
+    settings = dict(
+        speed=pv["speed"], reverb_room_size=pv["reverbRoom"], reverb_mix=pv["reverbMix"] / 100.0,
+        bass_boost_db=pv["bassBoost"], treble_boost_db=pv["trebleBoost"], vintage_warmth=pv["warmth"],
+        enable_8d=pv["enable8D"], orbit_time=pv["orbitTime"], orbit_ducking=pv["orbitDucking"],
+        orbit_widening=pv["orbitWidening"] / 100.0,
+        font_family="Montserrat", font_color="#ffffff", pos_x=50, pos_y=50, text_transform="uppercase",
+        stroke_width=2, stroke_color="#000000", shadow_offset=4, font_size=60,
+        quality=quality, engine="ffmpeg", lyric_style=lyric_style, aspect_ratio=aspect_ratio,
+        **bg, file_name="lyric_video",
+    )
+
+    _update_job(job_id, status="queued", stage="Queued", progress=0, title=link, link=link)
+    BATCH_QUEUE.put({"job_id": job_id, "link": link, "image_path": image_path, "settings": settings})
+    return {"status": "success", "job_id": job_id}
+
+
+@app.get("/api/batch/jobs")
+def batch_jobs():
+    with BATCH_LOCK:
+        jobs = [dict(j) for j in BATCH_JOBS.values()]
+    # Merge live render progress from each rendering job's progress file
+    for j in jobs:
+        if j.get("status") == "rendering":
+            try:
+                with open(os.path.join(TEMP_DIR, f"{j['id']}_progress.json")) as f:
+                    p = json.load(f)
+                    j["progress"] = p.get("progress", j.get("progress", 0))
+            except Exception:
+                pass
+    return {"status": "success", "jobs": jobs}
+
+
+@app.post("/api/batch/clear")
+def batch_clear():
+    """Remove finished/errored jobs from the list (does not stop in-flight jobs)."""
+    with BATCH_LOCK:
+        for jid in [k for k, v in BATCH_JOBS.items() if v.get("status") in ("done", "error")]:
+            del BATCH_JOBS[jid]
+    return {"status": "success"}
+
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
