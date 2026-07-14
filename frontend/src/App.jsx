@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, Typography, ToggleButtonGroup, ToggleButton, Button, Alert } from '@mui/material'
 
 import Navigation from './components/Navigation'
@@ -9,6 +9,7 @@ import StepLyrics from './components/StepLyrics'
 import StepExport from './components/StepExport'
 import BatchGrid from './components/BatchGrid'
 import Downloader from './components/Downloader'
+import RotoscopeStudio from './components/RotoscopeStudio'
 
 const darkTheme = createTheme({
   palette: {
@@ -88,6 +89,7 @@ function App() {
   const [overlayVideoPath, setOverlayVideoPath] = useState('')
   const [maskSubject, setMaskSubject] = useState(false)
   const [subjectImagePath, setSubjectImagePath] = useState('')
+  const [subjectOverlayUrl, setSubjectOverlayUrl] = useState('')
   
   // Timing and Intro
   const [lyricOffset, setLyricOffset] = useState(0.5)
@@ -121,6 +123,80 @@ function App() {
   // Rendering Options
   const [renderQuality, setRenderQuality] = useState('final')
   const [renderEngine, setRenderEngine] = useState('ffmpeg')
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [previewProgress, setPreviewProgress] = useState(0)
+  const [previewStage, setPreviewStage] = useState('')
+  const [lastPreviewParamsString, setLastPreviewParamsString] = useState('')
+
+  const getMasteringParamsString = () => {
+    return JSON.stringify({
+      audioPath, speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth,
+      enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd
+    })
+  }
+
+  const handlePreview = async () => {
+    if (!audioPath) return
+    setIsPreviewing(true)
+    setPreviewProgress(0)
+    setPreviewStage('starting')
+    setStatus('Rendering audio preview...')
+
+    const jobId = Math.random().toString(36).substring(2, 10)
+    const currentParams = getMasteringParamsString()
+
+    const progressInterval = setInterval(async () => {
+      try {
+        const pRes = await fetch(`${API}/api/render-progress?job_id=${jobId}`)
+        const pData = await pRes.json()
+        setPreviewProgress(pData.progress || 0)
+        setPreviewStage(pData.stage || '')
+      } catch (e) {}
+    }, 500)
+
+    const formData = new FormData()
+    formData.append('audio_path', audioPath)
+    formData.append('job_id', jobId)
+    formData.append('speed', speed)
+    formData.append('reverb_room_size', reverbRoom)
+    formData.append('reverb_mix', reverbMix)
+    formData.append('bass_boost_db', bassBoost)
+    formData.append('treble_boost_db', trebleBoost)
+    formData.append('vintage_warmth', warmth)
+    formData.append('enable_8d', enable8D)
+    formData.append('orbit_time', orbitTime)
+    formData.append('orbit_ducking', orbitDucking)
+    formData.append('orbit_widening', orbitWidening / 100.0)
+    formData.append('trim_start', trimStart || 0)
+    formData.append('trim_end', trimEnd || 0)
+    try {
+      const ts = Date.now()
+      const res = await fetch(`${API}/api/preview-audio`, { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.status === 'success') {
+        setPreviewAudioUrl(`${API}${data.audio_url}?t=${ts}`)
+        setLastPreviewParamsString(currentParams)
+        setStatus('')
+      } else {
+        setStatus('Preview failed.')
+      }
+    } catch {
+      setStatus('Failed to connect to backend.')
+    }
+    clearInterval(progressInterval)
+    setIsPreviewing(false)
+  }
+
+  useEffect(() => {
+    if ((currentStep === 4 || currentStep === 5) && audioPath) {
+      const currentParams = getMasteringParamsString()
+      if (currentParams !== lastPreviewParamsString && !isPreviewing) {
+        handlePreview()
+      }
+    }
+  }, [currentStep, audioPath, speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth, enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd])
 
   // Compute which steps are complete
   const completedSteps = useMemo(() => {
@@ -129,6 +205,7 @@ function App() {
     if (completed.includes(1) && currentStep > 2) completed.push(2)
     if (completed.includes(1) && currentStep > 3) completed.push(3)
     if (completed.includes(1) && currentStep > 4) completed.push(4)
+    if (completed.includes(1) && currentStep > 5) completed.push(5)
     return completed
   }, [audioPath, bgFile, currentStep])
 
@@ -137,11 +214,12 @@ function App() {
     if (currentStep === 2) return true
     if (currentStep === 3) return true
     if (currentStep === 4) return true
+    if (currentStep === 5) return true
     return false
   }
 
   const goNext = () => {
-    if (canGoNext() && currentStep < 5) setCurrentStep(currentStep + 1)
+    if (canGoNext() && currentStep < 6) setCurrentStep(currentStep + 1)
   }
 
   const goBack = () => {
@@ -173,12 +251,17 @@ function App() {
           orbitWidening={orbitWidening} setOrbitWidening={setOrbitWidening}
           previewAudioUrl={previewAudioUrl} setPreviewAudioUrl={setPreviewAudioUrl}
           setStatus={setStatus}
+          isPreviewing={isPreviewing} setIsPreviewing={setIsPreviewing}
+          previewProgress={previewProgress} setPreviewProgress={setPreviewProgress}
+          previewStage={previewStage} setPreviewStage={setPreviewStage}
+          handlePreview={handlePreview}
         />
       case 3:
         return <StepTrim
           trimStart={trimStart} setTrimStart={setTrimStart}
           trimEnd={trimEnd} setTrimEnd={setTrimEnd}
           previewAudioUrl={previewAudioUrl}
+          audioPath={audioPath}
         />
       case 4:
         return <StepLyrics
@@ -209,6 +292,7 @@ function App() {
           overlayVideoPath={overlayVideoPath} setOverlayVideoPath={setOverlayVideoPath}
           maskSubject={maskSubject} setMaskSubject={setMaskSubject}
           subjectImagePath={subjectImagePath} setSubjectImagePath={setSubjectImagePath}
+          subjectOverlayUrl={subjectOverlayUrl} setSubjectOverlayUrl={setSubjectOverlayUrl}
           bgMode={bgMode} setBgMode={setBgMode}
           bgBlur={bgBlur} setBgBlur={setBgBlur}
           bgDim={bgDim} setBgDim={setBgDim}
@@ -219,8 +303,50 @@ function App() {
           beatBounce={beatBounce} setBeatBounce={setBeatBounce}
           particles={particles} setParticles={setParticles}
           bgFile={bgFile}
+          isPreviewing={isPreviewing}
+          previewProgress={previewProgress}
+          previewStage={previewStage}
         />
       case 5:
+        return <RotoscopeStudio 
+          bgFile={bgFile} 
+          subjectImagePath={subjectImagePath}
+          setSubjectImagePath={setSubjectImagePath}
+          subjectOverlayUrl={subjectOverlayUrl}
+          setSubjectOverlayUrl={setSubjectOverlayUrl}
+          lyrics={lyrics}
+          songTitle={songTitle}
+          speed={speed}
+          previewAudioUrl={previewAudioUrl}
+          fontFamily={fontFamily}
+          fontColor={fontColor}
+          fontSize={fontSize}
+          posX={posX}
+          posY={posY}
+          textTransform={textTransform}
+          strokeWidth={strokeWidth}
+          strokeColor={strokeColor}
+          shadowOffset={shadowOffset}
+          lyricStyle={lyricStyle}
+          lyricPreset={lyricPreset}
+          lyricOffset={lyricOffset}
+          bloomColor={bloomColor}
+          bloomRadius={bloomRadius}
+          beatShake={beatShake}
+          chromaticAberration={chromaticAberration}
+          overlayVideoPath={overlayVideoPath}
+          bgBlur={bgBlur}
+          bgDim={bgDim}
+          kenBurns={kenBurns}
+          grain={grain}
+          vignette={vignette}
+          gradientColors={gradientColors}
+          beatBounce={beatBounce}
+          particles={particles}
+          maskSubject={maskSubject}
+          setMaskSubject={setMaskSubject}
+        />
+      case 6:
         return <StepExport
           audioPath={audioPath} bgFile={bgFile} lyrics={lyrics} songTitle={songTitle}
           speed={speed} reverbRoom={reverbRoom} reverbMix={reverbMix}
@@ -282,7 +408,7 @@ function App() {
         </Drawer>
 
         <Box component="main" sx={{ flexGrow: 1, p: { xs: 3, md: 6 }, overflowY: 'auto' }}>
-          <Box maxWidth={mode === 'batch' ? 1280 : mode === 'downloader' ? 720 : 900} mx="auto">
+          <Box maxWidth={(mode === 'batch' || mode === 'rotoscope') ? 1280 : mode === 'downloader' ? 720 : 900} mx="auto">
             {mode === 'batch' ? (
               <BatchGrid />
             ) : mode === 'downloader' ? (
@@ -298,14 +424,14 @@ function App() {
                 {/* Bottom Nav */}
                 <Box mt={4} pt={3} borderTop={1} borderColor="divider" display="flex" justifyContent="space-between">
                   <Box>
-                    {currentStep > 1 && currentStep < 5 && (
+                    {currentStep > 1 && currentStep < 6 && (
                       <Button variant="outlined" onClick={goBack}>Back</Button>
                     )}
-                    {currentStep === 5 && (
-                      <Button variant="outlined" onClick={goBack}>Back to Lyrics</Button>
+                    {currentStep === 6 && (
+                      <Button variant="outlined" onClick={goBack}>Back to Masking</Button>
                     )}
                   </Box>
-                  {currentStep < 5 && (
+                  {currentStep < 6 && (
                     <Button 
                       variant="contained" 
                       color="primary" 

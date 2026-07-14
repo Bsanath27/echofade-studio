@@ -19,12 +19,12 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
         font_map = {
             "Montserrat": "Montserrat",
             "Arial": "Arial",
-            "Helvetica Neue": "Trebuchet MS",
+            "Helvetica Neue": "Helvetica Neue",
             "Impact": "Impact",
-            "Avenir Next": "DIN Alternate",
-            "Futura": "DIN Alternate",
-            "Didot": "Georgia",
-            "Baskerville": "Georgia"
+            "Avenir Next": "Avenir Next",
+            "Futura": "Futura",
+            "Didot": "Didot",
+            "Baskerville": "Baskerville"
         }
     else:
         font_map = {
@@ -171,6 +171,21 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
         shadow_offset, speed, duration, res_w, res_h, lyric_style, show_intro, song_title
     )
 
+    # Ensure Montserrat is in the local fonts directory for FFmpeg/libass
+    fonts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "fonts"))
+    os.makedirs(fonts_dir, exist_ok=True)
+    src_montserrat = os.path.abspath(os.path.join(os.path.dirname(__file__), "Montserrat-Bold.ttf"))
+    dst_montserrat = os.path.join(fonts_dir, "Montserrat-Bold.ttf")
+    if os.path.exists(src_montserrat) and not os.path.exists(dst_montserrat):
+        try:
+            import shutil
+            shutil.copyfile(src_montserrat, dst_montserrat)
+        except Exception as e:
+            print(f"Could not copy Montserrat to fonts dir: {e}")
+
+    escaped_ass = ass_path.replace("\\", "/").replace(":", "\\:")
+    escaped_fonts = fonts_dir.replace("\\", "/").replace(":", "\\:")
+
     # 4. Check & prepare subject mask if Text-Behind-Subject is enabled
     if mask_subject:
         if not subject_image_path or not os.path.exists(subject_image_path):
@@ -243,7 +258,7 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
             angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
             bg_stages.append(f"vignette=a={angle:.4f}")
 
-        bg_stages.append(f"ass='{ass_path}'")
+        bg_stages.append(f"ass=filename='{escaped_ass}':fontsdir='{escaped_fonts}'")
         bg_chain = ",".join(bg_stages)
 
         filter_complex = (
@@ -293,7 +308,7 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
             angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
             vf_stages.append(f"vignette=a={angle:.4f}")
 
-        vf_stages.append(f"ass='{ass_path}'")
+        vf_stages.append(f"ass=filename='{escaped_ass}':fontsdir='{escaped_fonts}'")
         vf_chain = ",".join(vf_stages)
 
         if overlay_v_idx != -1:

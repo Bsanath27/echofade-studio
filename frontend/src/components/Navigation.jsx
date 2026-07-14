@@ -6,7 +6,8 @@ export default function Navigation({ currentStep, setStep, completedSteps }) {
     { num: 2, label: 'Master Audio', sublabel: 'Effects, EQ, spatial' },
     { num: 3, label: 'Trim Audio', sublabel: 'Cut specific segment' },
     { num: 4, label: 'Lyrics', sublabel: 'Search & sync' },
-    { num: 5, label: 'Export', sublabel: 'Render & download' }
+    { num: 5, label: 'Masking', sublabel: 'Subject rotoscoping' },
+    { num: 6, label: 'Export', sublabel: 'Render & download' }
   ]
 
   return (

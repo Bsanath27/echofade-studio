@@ -24,6 +24,7 @@ export default function StepExport({
   beatBounce, particles,
   bloomColor, bloomRadius, beatShake,
   chromaticAberration, overlayVideoPath,
+  maskSubject, subjectImagePath,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -89,6 +90,8 @@ export default function StepExport({
     formData.append('beat_shake', beatShake === true ? 'true' : 'false')
     formData.append('chromatic_aberration', chromaticAberration === true ? 'true' : 'false')
     formData.append('overlay_video_path', overlayVideoPath || '')
+    formData.append('mask_subject', maskSubject === true ? 'true' : 'false')
+    formData.append('subject_image_path', subjectImagePath || '')
     if (gradientColors) formData.append('gradient_colors', JSON.stringify(gradientColors))
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)

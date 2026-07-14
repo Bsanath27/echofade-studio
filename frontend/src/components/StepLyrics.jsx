@@ -1,8 +1,17 @@
 import { useState, useRef, useEffect } from 'react'
-import { Box, Typography, Paper, TextField, Button, ToggleButtonGroup, ToggleButton, Select, MenuItem, Slider, Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Grid, InputLabel, FormControl, Chip } from '@mui/material'
+import { Box, Typography, Paper, TextField, Button, ToggleButtonGroup, ToggleButton, Select, MenuItem, Slider, Alert, CircularProgress, List, ListItem, ListItemText, ListItemSecondaryAction, Grid, InputLabel, FormControl, Chip, LinearProgress } from '@mui/material'
 import { FONT_PRESETS, BG_GRADIENTS } from '../presets'
 
 const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+
+const STAGE_LABELS = {
+  starting: 'Starting...',
+  slowdown: 'Applying vinyl slowdown...',
+  '8d': 'Rendering 8D spatial panning...',
+  eq_reverb: 'Applying EQ & reverb...',
+  mastering: 'Mastering audio...',
+  done: 'Done!'
+}
 
 export default function StepLyrics({
   lyrics, setLyrics, speed, previewAudioUrl, audioPath,
@@ -40,7 +49,11 @@ export default function StepLyrics({
   overlayVideoPath, setOverlayVideoPath,
   maskSubject, setMaskSubject,
   subjectImagePath, setSubjectImagePath,
-  bgFile
+  subjectOverlayUrl, setSubjectOverlayUrl,
+  bgFile,
+  isPreviewing,
+  previewProgress,
+  previewStage
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFont, setActiveFont] = useState(null)
@@ -59,13 +72,230 @@ export default function StepLyrics({
   const [isGenerating, setIsGenerating] = useState(false)
   const [currentLineIdx, setCurrentLineIdx] = useState(0)
   const [bgUrl, setBgUrl] = useState('')
-  const [subjectOverlayUrl, setSubjectOverlayUrl] = useState('')
   const [maskMode, setMaskMode] = useState('auto')
   const [chromaColor, setChromaColor] = useState('#000000')
   const [chromaTolerance, setChromaTolerance] = useState(40)
   const [isPickingColor, setIsPickingColor] = useState(false)
   const audioRef = useRef(null)
   const maskInputRef = useRef(null)
+  const particleCanvasRef = useRef(null)
+  const [analyserData, setAnalyserData] = useState({ bass: 0, treble: 0 })
+  const audioContextRef = useRef(null)
+  const analyserRef = useRef(null)
+  const sourceRef = useRef(null)
+  const analyserLoopRef = useRef(null)
+  const chromaHighlightCanvasRef = useRef(null)
+  const [maskWarning, setMaskWarning] = useState(null)
+
+
+  // 1. Audio Analyser setup for beat-reactive visual effects
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const setupAnalyser = () => {
+      if (audioContextRef.current) return
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext
+        const ctx = new AudioContextClass()
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 256
+        
+        const source = ctx.createMediaElementSource(audio)
+        source.connect(analyser)
+        analyser.connect(ctx.destination)
+        
+        audioContextRef.current = ctx
+        analyserRef.current = analyser
+        sourceRef.current = source
+      } catch (err) {
+        console.warn("Web Audio API blocked or not supported: ", err)
+      }
+    }
+
+    let isPlaying = false
+    const runAnalysis = () => {
+      const analyser = analyserRef.current
+      if (!analyser) return
+      
+      const bufferLength = analyser.frequencyBinCount
+      const dataArray = new Uint8Array(bufferLength)
+      
+      const loop = () => {
+        if (!isPlaying) return
+        analyser.getByteFrequencyData(dataArray)
+        
+        // Bass is in frequency bins 1 to 8 (20Hz - 150Hz)
+        let bassSum = 0
+        const bassBins = 8
+        for (let i = 1; i <= bassBins; i++) {
+          bassSum += dataArray[i]
+        }
+        const bassVal = bassSum / (bassBins * 255)
+
+        // Treble is in higher bins 40 to 70 (1kHz - 3kHz)
+        let trebleSum = 0
+        const startBin = 40
+        const trebleBins = 30
+        for (let i = startBin; i < startBin + trebleBins; i++) {
+          trebleSum += dataArray[i]
+        }
+        const trebleVal = trebleSum / (trebleBins * 255)
+
+        setAnalyserData({ bass: bassVal, treble: trebleVal })
+        analyserLoopRef.current = requestAnimationFrame(loop)
+      }
+      loop()
+    }
+
+    const handlePlay = () => {
+      setupAnalyser()
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume()
+      }
+      isPlaying = true
+      runAnalysis()
+    }
+
+    const handlePause = () => {
+      isPlaying = false
+      if (analyserLoopRef.current) {
+        cancelAnimationFrame(analyserLoopRef.current)
+      }
+      setAnalyserData({ bass: 0, treble: 0 })
+    }
+
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('ended', handlePause)
+    
+    return () => {
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('ended', handlePause)
+      isPlaying = false
+      if (analyserLoopRef.current) {
+        cancelAnimationFrame(analyserLoopRef.current)
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close()
+        } catch (e) {}
+        audioContextRef.current = null
+        analyserRef.current = null
+        sourceRef.current = null
+      }
+    }
+  }, [previewAudioUrl])
+
+  // 2. Dust Particles Canvas Animation
+  useEffect(() => {
+    if (!particles) return
+    const canvas = particleCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    
+    let animationFrameId
+    const numParticles = 25
+    const pts = []
+    
+    for (let i = 0; i < numParticles; i++) {
+      pts.push({
+        x: Math.random() * canvas.clientWidth,
+        y: Math.random() * canvas.clientHeight,
+        size: Math.random() * 2 + 0.5,
+        speedX: (Math.random() - 0.5) * 0.4,
+        speedY: -Math.random() * 0.5 - 0.1,
+        opacity: Math.random() * 0.5 + 0.1
+      })
+    }
+    
+    const resizeCanvas = () => {
+      canvas.width = canvas.clientWidth
+      canvas.height = canvas.clientHeight
+    }
+    resizeCanvas()
+    window.addEventListener('resize', resizeCanvas)
+    
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      pts.forEach(p => {
+        p.x += p.speedX
+        p.y += p.speedY
+        
+        if (p.x < 0) p.x = canvas.width
+        if (p.x > canvas.width) p.x = 0
+        if (p.y < 0) {
+          p.y = canvas.height
+          p.x = Math.random() * canvas.width
+        }
+        
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.opacity})`
+        ctx.shadowBlur = 4
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)'
+        ctx.fill()
+      })
+      animationFrameId = requestAnimationFrame(animate)
+    }
+    animate()
+    
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      window.removeEventListener('resize', resizeCanvas)
+    }
+  }, [particles])
+
+  // 3. Client-side Chroma Mask highlighting visualizer on canvas
+  useEffect(() => {
+    if (maskMode !== 'chroma' || !bgUrl || !chromaColor || isPickingColor) {
+      const canvas = chromaHighlightCanvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
+
+    const canvas = chromaHighlightCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      ctx.drawImage(img, 0, 0)
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const data = imgData.data
+
+      const hex = chromaColor.replace('#', '')
+      const tr = parseInt(hex.substring(0, 2), 16)
+      const tg = parseInt(hex.substring(2, 4), 16)
+      const tb = parseInt(hex.substring(4, 6), 16)
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        
+        const dist = Math.sqrt((r - tr) ** 2 + (g - tg) ** 2 + (b - tb) ** 2)
+        if (dist <= chromaTolerance) {
+          data[i] = 0
+          data[i + 1] = 255
+          data[i + 2] = 0
+          data[i + 3] = 160 // alpha
+        } else {
+          data[i + 3] = 0
+        }
+      }
+      ctx.putImageData(imgData, 0, 0)
+    }
+    img.src = bgUrl
+  }, [maskMode, bgUrl, chromaColor, chromaTolerance, isPickingColor])
 
   useEffect(() => {
     if (bgFile) {
@@ -134,6 +364,7 @@ export default function StepLyrics({
     setMaskSubject(newMaskState)
     if (newMaskState && !subjectImagePath && bgFile && maskMode === 'auto') {
       setIsGenerating(true)
+      setMaskWarning(null)
       try {
         const formData = new FormData()
         formData.append('image', bgFile)
@@ -142,6 +373,9 @@ export default function StepLyrics({
         if (data.status === 'success') {
           setSubjectImagePath(data.mask_path)
           setSubjectOverlayUrl(`${API}${data.mask_url}`)
+          if (data.method && data.method !== 'rembg') {
+            setMaskWarning("AI subject extraction (rembg) is not installed on this system. Used a fallback center-cut mask instead. Upload a custom transparent PNG for perfect 3D lyrics.")
+          }
         } else {
           alert('Failed to extract subject: ' + data.message)
           setMaskSubject(false)
@@ -196,6 +430,73 @@ export default function StepLyrics({
     } catch (e) {
       // user canceled
     }
+  }
+
+  const formatTime = (secs) => {
+    if (isNaN(secs)) return '00:00.0'
+    const m = Math.floor(secs / 60)
+    const s = Math.floor(secs % 60)
+    const ms = Math.floor((secs - Math.floor(secs)) * 10)
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${ms}`
+  }
+
+  const adjustLineTime = (idx, delta) => {
+    const lines = (lyrics || '').split('\n')
+    let lineCounter = 0
+    
+    const updatedLines = lines.map(line => {
+      const match = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/)
+      if (match) {
+        if (lineCounter === idx) {
+          const mins = parseInt(match[1])
+          const secs = parseInt(match[2])
+          const ms = parseInt(match[3])
+          const currentSec = mins * 60 + secs + ms / (match[3].length === 3 ? 1000 : 100)
+          
+          let newSec = currentSec + delta
+          if (newSec < 0) newSec = 0
+          
+          const newMins = Math.floor(newSec / 60)
+          const newSecs = Math.floor(newSec % 60)
+          const newMs = Math.round((newSec - Math.floor(newSec)) * 100)
+          
+          const timeStr = `[${String(newMins).padStart(2, '0')}:${String(newSecs).padStart(2, '0')}.${String(newMs).padStart(2, '0')}]`
+          return timeStr + match[4]
+        }
+        lineCounter++
+      }
+      return line
+    })
+    setLyrics(updatedLines.join('\n'))
+  }
+
+  const syncLineToPlayhead = (idx) => {
+    const audio = audioRef.current
+    if (!audio) return
+    const playheadTime = audio.currentTime
+    
+    const originalSec = (playheadTime + trimStart - lyricOffset) * speed
+    if (originalSec < 0) return
+
+    const lines = (lyrics || '').split('\n')
+    let lineCounter = 0
+    
+    const updatedLines = lines.map(line => {
+      const match = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/)
+      if (match) {
+        if (lineCounter === idx) {
+          const newMins = Math.floor(originalSec / 60)
+          const newSecs = Math.floor(originalSec % 60)
+          const newMs = Math.round((originalSec - Math.floor(originalSec)) * 100)
+          
+          const timeStr = `[${String(newMins).padStart(2, '0')}:${String(newSecs).padStart(2, '0')}.${String(newMs).padStart(2, '0')}]`
+          return timeStr + match[4]
+        }
+        lineCounter++
+      }
+      return line
+    })
+    setLyrics(updatedLines.join('\n'))
   }
 
   const handlePreviewClick = (e) => {
@@ -374,6 +675,18 @@ export default function StepLyrics({
         <Typography color="text.secondary">Search, paste, or edit synchronized lyrics — then preview them against your mastered audio</Typography>
       </Box>
 
+      {isPreviewing && (
+        <Paper elevation={0} sx={{ p: 3, mb: 3, border: 1, borderColor: "primary.main", bgcolor: "background.paper", borderRadius: 2 }}>
+          <Typography variant="subtitle2" color="primary" fontWeight="bold" gutterBottom>
+            🔄 Synthesizing fresh audio to match your mastering parameters...
+          </Typography>
+          <LinearProgress variant="determinate" value={previewProgress} sx={{ height: 8, borderRadius: 4, mb: 1 }} />
+          <Typography variant="caption" color="text.secondary">
+            {STAGE_LABELS[previewStage] || 'Processing...'} {previewProgress}%
+          </Typography>
+        </Paper>
+      )}
+
       {speed != 1.0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           Timestamps auto-adjusted to match your <strong> {speed}x </strong> speed. Preview below to verify sync.
@@ -394,8 +707,19 @@ export default function StepLyrics({
           </Typography>
           
           <Box mb={3} p={2} bgcolor="background.default" borderRadius={2} border={1} borderColor="divider">
-            <audio ref={audioRef} controls src={previewAudioUrl} style={{width: '100%', height: 40}} />
+            <audio ref={audioRef} controls src={previewAudioUrl} style={{width: '100%', height: 40, pointerEvents: isPreviewing ? 'none' : 'auto', opacity: isPreviewing ? 0.5 : 1}} />
           </Box>
+
+          <style>{`
+            @keyframes overshootSpring {
+              0% { transform: scale(0.65); opacity: 0; }
+              75% { transform: scale(1.1); opacity: 0.9; }
+              100% { transform: scale(1); opacity: 1; }
+            }
+            .kinetic-lyric-active {
+              animation: overshootSpring 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+            }
+          `}</style>
 
           <Box sx={{
             display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
@@ -404,6 +728,14 @@ export default function StepLyrics({
               ? { height: 500, aspectRatio: '9 / 16', maxWidth: '100%' }
               : { width: '100%', aspectRatio: '16 / 9', maxHeight: 460 })
           }}>
+            {isPreviewing && (
+              <Box position="absolute" inset={0} bgcolor="rgba(0,0,0,0.85)" display="flex" flexDirection="column" alignItems="center" justifyContent="center" zIndex={100} gap={1.5}>
+                <CircularProgress size={32} />
+                <Typography variant="body2" color="primary" fontWeight="bold">Synthesizing audio effects...</Typography>
+                <Typography variant="caption" color="text.secondary">Step 4 sync will load shortly</Typography>
+              </Box>
+            )}
+
             {isPickingColor && (
               <Box position="absolute" top={0} left={0} right={0} bgcolor="rgba(0,0,0,0.7)" color="white" p={1} zIndex={50} display="flex" justifyContent="space-between" alignItems="center">
                 <Typography variant="body2">Crosshair mode: Click anywhere on the background to pick a color</Typography>
@@ -411,103 +743,129 @@ export default function StepLyrics({
               </Box>
             )}
 
-            <Box sx={{ position: 'absolute', top: 12, left: 12, zIndex: 10, bgcolor: 'rgba(0,0,0,0.6)', px: 1.5, py: 0.5, borderRadius: 1, backdropFilter: 'blur(4px)' }}>
-              <Typography variant="caption" color="white" fontWeight="bold">Visual Layout Preview · {aspectRatio}</Typography>
-            </Box>
-            
-            {/* Chosen gradient background (overrides the image when picked) */}
-            {bgMode === 'gradient' && gradientColors && (
-              <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(160deg, ${gradientColors.join(', ')})` }} />
-            )}
-
-            {/* Background Media */}
-            {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
-              const isVid = bgFile?.type?.startsWith('video/')
-              const blurPx = isPickingColor ? 0 : (bgMode === 'gradient' ? 45 : bgBlur * 0.45)
-              const baseScale = isPickingColor ? 1 : (kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5))
-              const mediaStyle = {
-                width: '100%', height: '100%', objectFit: 'cover',
-                position: 'absolute', top: 0, left: 0,
-                filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
-                transform: `scale(${baseScale})`,
-                transformOrigin: 'center',
-                transition: kenBurns ? 'transform 20s ease-in-out' : 'none',
-                cursor: isPickingColor ? 'crosshair' : 'default',
-                zIndex: 1
-              }
-              return isVid
-                ? <video src={bgUrl} autoPlay loop muted style={mediaStyle} onClick={handlePreviewClick} />
-                : <img src={bgUrl} style={mediaStyle} onClick={handlePreviewClick} />
-            })()}
-
-            {/* Overlays (Hidden during color pick) */}
-            {!isPickingColor && bgDim > 0 && <Box sx={{position: 'absolute', inset: 0, bgcolor: 'black', opacity: bgDim, zIndex: 2}} />}
-            {!isPickingColor && grain > 0 && <Box sx={{
-              position: 'absolute', inset: 0, mixBlendMode: 'overlay', zIndex: 3,
-              opacity: Math.min(grain / 30 * 0.65, 0.65),
-              backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
-            }} />}
-            {!isPickingColor && vignette > 0 && <Box sx={{
-              position: 'absolute', inset: 0, zIndex: 4,
-              background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette}) 100%)`
-            }} />}
-
-            {/* Visual Safe Area & Coordinate Mapping (Hidden during color pick) */}
-            {!isPickingColor && (
-              <Box sx={{position: 'absolute', inset: 0, zIndex: 5}}>
-                {parsedLines.length > 0 && (
-                  <Box sx={{
-                    position: 'absolute',
-                    top: `${posY}%`,
-                    left: `${posX}%`,
-                    transform: 'translate(-50%, -50%)',
-                    textAlign: 'center',
-                    width: '90%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '5px'
-                  }}>
-                    {(lyricStyle === 'stack' ? [-1, 0, 1] : [0]).map(offset => {
-                      const effectiveLineIdx = currentLineIdx < 0 ? 0 : currentLineIdx
-                      const lineIdx = effectiveLineIdx + offset
-                      if (lineIdx < 0 || lineIdx >= parsedLines.length) return null
-                      const line = parsedLines[lineIdx]
-                      
-                      return (
-                        <Box key={lineIdx} sx={{
-                          fontSize: offset === 0 ? `${Math.max(1, fontSize / 30)}rem` : `${Math.max(0.8, fontSize / 40)}rem`,
-                          fontWeight: 700,
-                          color: offset === 0 ? fontColor : 'rgba(255,255,255,0.4)',
-                          textTransform: textTransform,
-                          transition: 'all 0.3s ease',
-                          fontFamily: fontFamily === 'Montserrat' ? "'Montserrat', sans-serif" : `"${fontFamily}", sans-serif`,
-                          textShadow: offset === 0 ? (
-                            [
-                              strokeWidth > 0 ? `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}` : null,
-                              shadowOffset > 0 ? `${shadowOffset}px ${shadowOffset}px ${Math.max(2, shadowOffset)}px rgba(0,0,0,0.8)` : null,
-                              bloomRadius > 0 && bloomColor ? `0 0 ${bloomRadius}px ${bloomColor}, 0 0 ${bloomRadius * 1.5}px ${bloomColor}` : null
-                            ].filter(Boolean).join(', ') || 'none'
-                          ) : 'none'
-                        }}>
-                          {line.text}
-                        </Box>
-                      )
-                    })}
-                  </Box>
-                )}
+            {/* Content wrapper that shakes and bounces to audio peaks */}
+            <Box sx={{
+              position: 'absolute', inset: 0,
+              transform: `translate(${beatShake ? (Math.random() - 0.5) * analyserData.bass * 16 : 0}px, ${beatShake ? (Math.random() - 0.5) * analyserData.bass * 16 : 0}px) scale(${beatBounce ? (1 + analyserData.bass * 0.04) : 1})`,
+              transformOrigin: 'center',
+              width: '100%', height: '100%',
+              transition: 'transform 0.05s ease-out'
+            }}>
+              <Box sx={{ position: 'absolute', top: 12, left: 12, zIndex: 10, bgcolor: 'rgba(0,0,0,0.6)', px: 1.5, py: 0.5, borderRadius: 1, backdropFilter: 'blur(4px)' }}>
+                <Typography variant="caption" color="white" fontWeight="bold">Visual Layout Preview · {aspectRatio}</Typography>
               </Box>
-            )}
-            
-            {/* Subject Mask Overlay (3D Depth Rotoscope) */}
-            {!isPickingColor && maskSubject && subjectOverlayUrl && (
-              <img src={subjectOverlayUrl} style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-                objectFit: 'cover', pointerEvents: 'none', zIndex: 10,
-                filter: kenBurns ? 'none' : (bgBlur > 0 ? `blur(${bgBlur * 0.45}px)` : 'none'),
-                transform: kenBurns ? 'scale(1)' : `scale(${1 + Math.min((bgBlur * 0.45) / 40, 0.5)})`,
-                transformOrigin: 'center'
-              }} />
-            )}
+              
+              {/* Chosen gradient background (overrides the image when picked) */}
+              {bgMode === 'gradient' && gradientColors && (
+                <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(160deg, ${gradientColors.join(', ')})` }} />
+              )}
+
+              {/* Background Media */}
+              {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
+                const isVid = bgFile?.type?.startsWith('video/')
+                const blurPx = isPickingColor ? 0 : (bgMode === 'gradient' ? 45 : bgBlur * 0.45)
+                const baseScale = isPickingColor ? 1 : (kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5))
+                const mediaStyle = {
+                  width: '100%', height: '100%', objectFit: 'cover',
+                  position: 'absolute', top: 0, left: 0,
+                  filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+                  transform: `scale(${baseScale})`,
+                  transformOrigin: 'center',
+                  transition: kenBurns ? 'transform 20s ease-in-out' : 'none',
+                  cursor: isPickingColor ? 'crosshair' : 'default',
+                  zIndex: 1
+                }
+                return isVid
+                  ? <video src={bgUrl} autoPlay loop muted style={mediaStyle} onClick={handlePreviewClick} />
+                  : <img src={bgUrl} style={mediaStyle} onClick={handlePreviewClick} />
+              })()}
+
+              {/* Overlays (Hidden during color pick) */}
+              {!isPickingColor && bgDim > 0 && <Box sx={{position: 'absolute', inset: 0, bgcolor: 'black', opacity: bgDim, zIndex: 2}} />}
+              {!isPickingColor && grain > 0 && <Box sx={{
+                position: 'absolute', inset: 0, mixBlendMode: 'overlay', zIndex: 3,
+                opacity: Math.min(grain / 30 * 0.65, 0.65),
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+              }} />}
+              {!isPickingColor && vignette > 0 && <Box sx={{
+                position: 'absolute', inset: 0, zIndex: 4,
+                background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette}) 100%)`
+              }} />}
+
+              {/* Floating particles canvas layer */}
+              {particles && (
+                <canvas ref={particleCanvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 6, width: '100%', height: '100%' }} />
+              )}
+
+              {/* Chroma Key highlight canvas overlay */}
+              {maskMode === 'chroma' && !isPickingColor && (
+                <canvas ref={chromaHighlightCanvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9, width: '100%', height: '100%', objectFit: 'cover' }} />
+              )}
+
+              {/* Visual Safe Area & Coordinate Mapping (Hidden during color pick) */}
+              {!isPickingColor && (
+                <Box sx={{position: 'absolute', inset: 0, zIndex: 5}}>
+                  {parsedLines.length > 0 && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: `${posY}%`,
+                      left: `${posX}%`,
+                      transform: 'translate(-50%, -50%)',
+                      textAlign: 'center',
+                      width: '90%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '5px'
+                    }}>
+                      {(lyricStyle === 'stack' ? [-1, 0, 1] : [0]).map(offset => {
+                        const effectiveLineIdx = currentLineIdx < 0 ? 0 : currentLineIdx
+                        const lineIdx = effectiveLineIdx + offset
+                        if (lineIdx < 0 || lineIdx >= parsedLines.length) return null
+                        const line = parsedLines[lineIdx]
+                        const isCAActive = chromaticAberration && analyserData.bass > 0.15
+                        const caShift = isCAActive ? analyserData.bass * 10 : 0
+                        
+                        return (
+                          <Box 
+                            key={lineIdx} 
+                            className={offset === 0 && lyricPreset === 'line-pop' ? 'kinetic-lyric-active' : ''}
+                            sx={{
+                              fontSize: offset === 0 ? `${Math.max(1, fontSize / 30)}rem` : `${Math.max(0.8, fontSize / 40)}rem`,
+                              fontWeight: 700,
+                              color: offset === 0 ? fontColor : 'rgba(255,255,255,0.4)',
+                              textTransform: textTransform,
+                              transition: 'all 0.3s ease',
+                              fontFamily: fontFamily === 'Montserrat' ? "'Montserrat', sans-serif" : `"${fontFamily}", sans-serif`,
+                              textShadow: offset === 0 ? (
+                                [
+                                  isCAActive ? `-${caShift}px 0 0 rgba(255,0,0,0.65), ${caShift}px 0 0 rgba(0,255,255,0.65)` : null,
+                                  strokeWidth > 0 ? `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}` : null,
+                                  shadowOffset > 0 ? `${shadowOffset}px ${shadowOffset}px ${Math.max(2, shadowOffset)}px rgba(0,0,0,0.8)` : null,
+                                  bloomRadius > 0 && bloomColor ? `0 0 ${bloomRadius}px ${bloomColor}, 0 0 ${bloomRadius * 1.5}px ${bloomColor}` : null
+                                ].filter(Boolean).join(', ') || 'none'
+                              ) : 'none'
+                            }}
+                          >
+                            {line.text}
+                          </Box>
+                        )
+                      })}
+                    </Box>
+                  )}
+                </Box>
+              )}
+              
+              {/* Subject Mask Overlay (3D Depth Rotoscope) */}
+              {!isPickingColor && maskSubject && subjectOverlayUrl && (
+                <img src={subjectOverlayUrl} style={{
+                  position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+                  objectFit: 'cover', pointerEvents: 'none', zIndex: 10,
+                  filter: kenBurns ? 'none' : (bgBlur > 0 ? `blur(${bgBlur * 0.45}px)` : 'none'),
+                  transform: kenBurns ? 'scale(1)' : `scale(${1 + Math.min((bgBlur * 0.45) / 40, 0.5)})`,
+                  transformOrigin: 'center'
+                }} />
+              )}
+            </Box>
           </Box>
         </Paper>
       )}
@@ -516,6 +874,49 @@ export default function StepLyrics({
         <Alert severity="error" sx={{ mb: 3 }}>
           No valid timestamps found in your lyrics. Make sure each line starts with [mm:ss.xx] format.
         </Alert>
+      )}
+
+      {/* Timing Fine-Tuning Panel */}
+      {parsedLines.length > 0 && (
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
+            ⏱️ Line-by-Line Timing Fine-Tuning
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            Fine-tune each line's entry time. Click ⏱️ to set the line's start time to the current audio position.
+          </Typography>
+          <Box sx={{ maxHeight: 220, overflowY: 'auto', bgcolor: 'background.default', p: 1.5, borderRadius: 2, border: 1, borderColor: 'divider' }}>
+            <Grid container spacing={1}>
+              {parsedLines.map((line, idx) => {
+                const isActive = idx === currentLineIdx
+                return (
+                  <Grid item xs={12} key={idx} sx={{ display: 'flex', alignItems: 'center', py: 0.5, px: 1, borderRadius: 1, bgcolor: isActive ? 'rgba(255,122,0,0.08)' : 'transparent', border: isActive ? '1px solid rgba(255,122,0,0.2)' : '1px solid transparent', gap: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', minWidth: 60 }}>
+                      [{formatTime(line.time)}]
+                    </Typography>
+                    <Typography variant="body2" sx={{ ml: 1, flexGrow: 1, fontWeight: isActive ? 'bold' : 'normal', color: isActive ? 'primary.main' : 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {line.text}
+                    </Typography>
+                    <Box display="flex" gap={0.5}>
+                      <Button size="small" variant="outlined" onClick={() => adjustLineTime(idx, -0.1)} sx={{ minWidth: 40, py: 0.2, px: 0.5, fontSize: '0.7rem', color: 'text.secondary', borderColor: 'divider' }}>-0.1s</Button>
+                      <Button size="small" variant="outlined" onClick={() => adjustLineTime(idx, 0.1)} sx={{ minWidth: 40, py: 0.2, px: 0.5, fontSize: '0.7rem', color: 'text.secondary', borderColor: 'divider' }}>+0.1s</Button>
+                      <Button 
+                        size="small" 
+                        variant="contained" 
+                        color="secondary" 
+                        onClick={() => syncLineToPlayhead(idx)} 
+                        title="Sync to current playhead"
+                        sx={{ minWidth: 32, p: 0.5, fontSize: '0.75rem' }}
+                      >
+                        ⏱️
+                      </Button>
+                    </Box>
+                  </Grid>
+                )
+              })}
+            </Grid>
+          </Box>
+        </Paper>
       )}
 
       {/* Editor */}
@@ -921,6 +1322,11 @@ export default function StepLyrics({
         </Box>
 
         <Box mt={2} p={2} bgcolor="background.default" borderRadius={2} border={1} borderColor="divider">
+          {maskWarning && (
+            <Alert severity="warning" onClose={() => setMaskWarning(null)} sx={{ mb: 2 }}>
+              {maskWarning}
+            </Alert>
+          )}
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
             <Box>
               <Typography variant="body2" color="primary" fontWeight="bold">3D Depth Rotoscope (Text Behind Subject)</Typography>

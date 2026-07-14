@@ -28,13 +28,14 @@ export default function StepMaster({
   trimStart, setTrimStart,
   trimEnd, setTrimEnd,
   previewAudioUrl, setPreviewAudioUrl,
-  setStatus
+  setStatus,
+  isPreviewing, setIsPreviewing,
+  previewProgress, setPreviewProgress,
+  previewStage, setPreviewStage,
+  handlePreview
 }) {
-  const [isPreviewing, setIsPreviewing] = useState(false)
   const [activePreset, setActivePreset] = useState(null)
   const [active8D, setActive8D] = useState(null)
-  const [previewProgress, setPreviewProgress] = useState(0)
-  const [previewStage, setPreviewStage] = useState('')
 
   const apply8DPreset = (p) => {
     setEnable8D(true)
@@ -50,54 +51,6 @@ export default function StepMaster({
     setActivePreset(preset.name)
   }
 
-  const handlePreview = async () => {
-    setIsPreviewing(true)
-    setPreviewProgress(0)
-    setPreviewStage('starting')
-    setStatus('Rendering audio preview...')
-
-    const jobId = Math.random().toString(36).substring(2, 10)
-
-    const progressInterval = setInterval(async () => {
-      try {
-        const pRes = await fetch(`${API}/api/render-progress?job_id=${jobId}`)
-        const pData = await pRes.json()
-        setPreviewProgress(pData.progress || 0)
-        setPreviewStage(pData.stage || '')
-      } catch (e) {}
-    }, 500)
-
-    const formData = new FormData()
-    formData.append('audio_path', audioPath)
-    formData.append('job_id', jobId)
-    formData.append('speed', speed)
-    formData.append('reverb_room_size', reverbRoom)
-    formData.append('reverb_mix', reverbMix)
-    formData.append('bass_boost_db', bassBoost)
-    formData.append('treble_boost_db', trebleBoost)
-    formData.append('vintage_warmth', warmth)
-    formData.append('enable_8d', enable8D)
-    formData.append('orbit_time', orbitTime)
-    formData.append('orbit_ducking', orbitDucking)
-    formData.append('orbit_widening', orbitWidening / 100.0)
-    formData.append('trim_start', trimStart || 0)
-    formData.append('trim_end', trimEnd || 0)
-    try {
-      const ts = Date.now()
-      const res = await fetch(`${API}/api/preview-audio`, { method: 'POST', body: formData })
-      const data = await res.json()
-      if (data.status === 'success') {
-        setPreviewAudioUrl(`${API}${data.audio_url}?t=${ts}`)
-        setStatus('')
-      } else {
-        setStatus('Preview failed.')
-      }
-    } catch {
-      setStatus('Failed to connect to backend.')
-    }
-    clearInterval(progressInterval)
-    setIsPreviewing(false)
-  }
 
   return (
     <Box>

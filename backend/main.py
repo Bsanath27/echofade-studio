@@ -389,6 +389,46 @@ async def upload_audio(audio: UploadFile = File(...)):
         }
     }
 
+@app.get("/api/audio-waveform")
+async def audio_waveform(audio_path: str):
+    """Generate downsampled peak amplitude data for visual waveform rendering."""
+    if not audio_path or not os.path.exists(audio_path):
+        return JSONResponse({"status": "error", "message": "Audio file not found"}, status_code=400)
+    try:
+        from pydub import AudioSegment
+        import numpy as np
+        
+        # Load audio and decode to mono 8000Hz for fast processing
+        audio = AudioSegment.from_file(audio_path)
+        audio = audio.set_channels(1).set_frame_rate(8000)
+        
+        samples = np.abs(np.array(audio.get_array_of_samples(), dtype=np.float32))
+        
+        num_peaks = 150
+        chunk_size = len(samples) // num_peaks
+        if chunk_size < 1:
+            chunk_size = 1
+            
+        peaks = []
+        for i in range(num_peaks):
+            start = i * chunk_size
+            end = start + chunk_size
+            chunk = samples[start:end]
+            if len(chunk) > 0:
+                peaks.append(float(np.max(chunk)))
+            else:
+                peaks.append(0.0)
+                
+        # Normalize between 0.0 and 1.0
+        max_val = max(peaks) if peaks else 1.0
+        if max_val > 0:
+            peaks = [p / max_val for p in peaks]
+            
+        return {"status": "success", "peaks": peaks}
+    except Exception as e:
+        import traceback
+        return JSONResponse({"status": "error", "message": str(e), "traceback": traceback.format_exc()}, status_code=500)
+
 @app.get("/api/download/{file_path:path}")
 async def download_file(file_path: str):
     """Serve a rendered video for download (file_path is relative to temp/, e.g. jobs/<id>/<name>.mp4)."""
@@ -494,11 +534,12 @@ def preview_audio(
 async def generate_mask(
     image: UploadFile = File(None),
     image_path: str = Form(None),
-    job_id: str = Form(None)
+    job_id: str = Form(None),
+    points_json: str = Form(None)
 ):
     """
     Generate a transparent subject mask PNG for Text-Behind-Subject 3D depth effect.
-    Accepts either an uploaded file or an existing server image_path.
+    Accepts either an uploaded file or an existing server image_path, guided by clicked points.
     """
     try:
         if not job_id:
@@ -521,10 +562,17 @@ async def generate_mask(
         else:
             return JSONResponse({"status": "error", "message": "No image file or image_path provided"}, status_code=400)
 
+        points = None
+        if points_json:
+            try:
+                points = json.loads(points_json)
+            except Exception:
+                pass
+
         output_mask_path = os.path.join(mask_dir, f"mask_{job_id}.png")
         
-        from rotoscope_engine import generate_subject_mask
-        mask_path = await asyncio.to_thread(generate_subject_mask, input_path, output_mask_path)
+        from rotoscope_engine import generate_subject_mask_detailed
+        mask_path, method = await asyncio.to_thread(generate_subject_mask_detailed, input_path, output_mask_path, points)
         
         rel_path = os.path.relpath(mask_path, TEMP_DIR)
         url_path = quote(rel_path, safe='/')
@@ -532,7 +580,8 @@ async def generate_mask(
         return {
             "status": "success",
             "mask_url": f"/files/{url_path}",
-            "mask_path": mask_path
+            "mask_path": mask_path,
+            "method": method
         }
     except Exception as e:
         import traceback

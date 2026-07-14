@@ -10,3 +10,4 @@ openai-whisper
 Pillow
 pillow-heif
 audioop-lts
+opencv-python-headless
