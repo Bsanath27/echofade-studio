@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, Typography, Toggl
 import Navigation from './components/Navigation'
 import StepImport from './components/StepImport'
 import StepMaster from './components/StepMaster'
+import StepTrim from './components/StepTrim'
 import StepLyrics from './components/StepLyrics'
 import StepExport from './components/StepExport'
 import BatchGrid from './components/BatchGrid'
@@ -76,6 +77,23 @@ function App() {
   const [strokeColor, setStrokeColor] = useState('#000000')
   const [shadowOffset, setShadowOffset] = useState(4)
   const [lyricStyle, setLyricStyle] = useState('single')
+  const [lyricPreset, setLyricPreset] = useState('line-pop')
+  const [canvasMode, setCanvasMode] = useState(false)
+  
+  // Advanced Aesthetics
+  const [bloomColor, setBloomColor] = useState('')
+  const [bloomRadius, setBloomRadius] = useState(0)
+  const [beatShake, setBeatShake] = useState(false)
+  const [chromaticAberration, setChromaticAberration] = useState(false)
+  const [overlayVideoPath, setOverlayVideoPath] = useState('')
+  const [maskSubject, setMaskSubject] = useState(false)
+  const [subjectImagePath, setSubjectImagePath] = useState('')
+  
+  // Timing and Intro
+  const [lyricOffset, setLyricOffset] = useState(0.5)
+  const [showIntro, setShowIntro] = useState(false)
+  const [trimStart, setTrimStart] = useState(0)
+  const [trimEnd, setTrimEnd] = useState(0)
 
   // Background style (Phase 1: cinematic backgrounds)
   const [bgMode, setBgMode] = useState('image')
@@ -85,6 +103,8 @@ function App() {
   const [grain, setGrain] = useState(0)
   const [vignette, setVignette] = useState(0)
   const [gradientColors, setGradientColors] = useState(null) // null = auto-extract from image
+  const [beatBounce, setBeatBounce] = useState(false)
+  const [particles, setParticles] = useState(false)
 
   // Audio mastering
   const [speed, setSpeed] = useState(1.0)
@@ -108,6 +128,7 @@ function App() {
     if (audioPath && bgFile) completed.push(1)
     if (completed.includes(1) && currentStep > 2) completed.push(2)
     if (completed.includes(1) && currentStep > 3) completed.push(3)
+    if (completed.includes(1) && currentStep > 4) completed.push(4)
     return completed
   }, [audioPath, bgFile, currentStep])
 
@@ -115,11 +136,12 @@ function App() {
     if (currentStep === 1) return audioPath && bgFile
     if (currentStep === 2) return true
     if (currentStep === 3) return true
+    if (currentStep === 4) return true
     return false
   }
 
   const goNext = () => {
-    if (canGoNext() && currentStep < 4) setCurrentStep(currentStep + 1)
+    if (canGoNext() && currentStep < 5) setCurrentStep(currentStep + 1)
   }
 
   const goBack = () => {
@@ -153,6 +175,12 @@ function App() {
           setStatus={setStatus}
         />
       case 3:
+        return <StepTrim
+          trimStart={trimStart} setTrimStart={setTrimStart}
+          trimEnd={trimEnd} setTrimEnd={setTrimEnd}
+          previewAudioUrl={previewAudioUrl}
+        />
+      case 4:
         return <StepLyrics
           lyrics={lyrics} setLyrics={setLyrics} speed={speed} previewAudioUrl={previewAudioUrl}
           audioPath={audioPath}
@@ -166,7 +194,21 @@ function App() {
           strokeColor={strokeColor} setStrokeColor={setStrokeColor}
           shadowOffset={shadowOffset} setShadowOffset={setShadowOffset}
           lyricStyle={lyricStyle} setLyricStyle={setLyricStyle}
+          lyricPreset={lyricPreset} setLyricPreset={setLyricPreset}
+          lyricOffset={lyricOffset} setLyricOffset={setLyricOffset}
+          trimStart={trimStart} setTrimStart={setTrimStart}
+          trimEnd={trimEnd} setTrimEnd={setTrimEnd}
+          showIntro={showIntro} setShowIntro={setShowIntro}
+          songTitle={songTitle} setSongTitle={setSongTitle}
+          canvasMode={canvasMode} setCanvasMode={setCanvasMode}
           aspectRatio={aspectRatio}
+          bloomColor={bloomColor} setBloomColor={setBloomColor}
+          bloomRadius={bloomRadius} setBloomRadius={setBloomRadius}
+          beatShake={beatShake} setBeatShake={setBeatShake}
+          chromaticAberration={chromaticAberration} setChromaticAberration={setChromaticAberration}
+          overlayVideoPath={overlayVideoPath} setOverlayVideoPath={setOverlayVideoPath}
+          maskSubject={maskSubject} setMaskSubject={setMaskSubject}
+          subjectImagePath={subjectImagePath} setSubjectImagePath={setSubjectImagePath}
           bgMode={bgMode} setBgMode={setBgMode}
           bgBlur={bgBlur} setBgBlur={setBgBlur}
           bgDim={bgDim} setBgDim={setBgDim}
@@ -174,9 +216,11 @@ function App() {
           grain={grain} setGrain={setGrain}
           vignette={vignette} setVignette={setVignette}
           gradientColors={gradientColors} setGradientColors={setGradientColors}
+          beatBounce={beatBounce} setBeatBounce={setBeatBounce}
+          particles={particles} setParticles={setParticles}
           bgFile={bgFile}
         />
-      case 4:
+      case 5:
         return <StepExport
           audioPath={audioPath} bgFile={bgFile} lyrics={lyrics} songTitle={songTitle}
           speed={speed} reverbRoom={reverbRoom} reverbMix={reverbMix}
@@ -185,9 +229,13 @@ function App() {
           fontFamily={fontFamily} fontColor={fontColor} fontSize={fontSize}
           posX={posX} posY={posY} textTransform={textTransform}
           strokeWidth={strokeWidth} strokeColor={strokeColor} shadowOffset={shadowOffset}
-          lyricStyle={lyricStyle} aspectRatio={aspectRatio}
+          lyricStyle={lyricStyle} lyricPreset={lyricPreset} canvasMode={canvasMode} aspectRatio={aspectRatio}
+          lyricOffset={lyricOffset} showIntro={showIntro} trimStart={trimStart} trimEnd={trimEnd}
           bgMode={bgMode} bgBlur={bgBlur} bgDim={bgDim} kenBurns={kenBurns} grain={grain} vignette={vignette}
-          gradientColors={gradientColors}
+          gradientColors={gradientColors} beatBounce={beatBounce} particles={particles}
+          bloomColor={bloomColor} bloomRadius={bloomRadius} beatShake={beatShake}
+          chromaticAberration={chromaticAberration} overlayVideoPath={overlayVideoPath}
+          maskSubject={maskSubject} subjectImagePath={subjectImagePath}
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}
@@ -250,14 +298,14 @@ function App() {
                 {/* Bottom Nav */}
                 <Box mt={4} pt={3} borderTop={1} borderColor="divider" display="flex" justifyContent="space-between">
                   <Box>
-                    {currentStep > 1 && currentStep < 4 && (
+                    {currentStep > 1 && currentStep < 5 && (
                       <Button variant="outlined" onClick={goBack}>Back</Button>
                     )}
-                    {currentStep === 4 && (
+                    {currentStep === 5 && (
                       <Button variant="outlined" onClick={goBack}>Back to Lyrics</Button>
                     )}
                   </Box>
-                  {currentStep < 4 && (
+                  {currentStep < 5 && (
                     <Button 
                       variant="contained" 
                       color="primary" 

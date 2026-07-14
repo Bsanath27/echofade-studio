@@ -4,7 +4,7 @@ import json
 import re
 import platform
 
-def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_color, pos_x, pos_y, text_transform, stroke_width, stroke_color, shadow_offset, speed, duration, bg_width, bg_height, lyric_style="single"):
+def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_color, pos_x, pos_y, text_transform, stroke_width, stroke_color, shadow_offset, speed, duration, bg_width, bg_height, lyric_style="single", show_intro=False, song_title=""):
     # Convert hex color (#RRGGBB) to ASS color (&HAABBGGRR)
     def hex_to_ass(hex_col, alpha="00"):
         hex_col = hex_col.lstrip('#')
@@ -40,6 +40,7 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
     ass_font = font_map.get(font_family, "Arial")
     
     primary_col = hex_to_ass(font_color)
+    secondary_col = hex_to_ass(font_color, alpha="80") # 50% dimmed font color for karaoke unread state
     outline_col = hex_to_ass(stroke_color) if stroke_width > 0 else "&H00000000"
     back_col = "&H80000000" # semi-transparent black shadow
 
@@ -63,13 +64,26 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
     lines.append("")
     lines.append("[V4+ Styles]")
     lines.append("Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding")
-    lines.append(f"Style: Default,{ass_font},{font_size},{primary_col},&H000000FF,{outline_col},{back_col},-1,0,0,0,100,100,0,0,1,{stroke_width},{shadow_offset},5,10,10,10,1")
+    lines.append(f"Style: Default,{ass_font},{font_size},{primary_col},{secondary_col},{outline_col},{back_col},-1,0,0,0,100,100,0,0,1,{stroke_width},{shadow_offset},5,10,10,10,1")
     lines.append("")
     lines.append("[Events]")
     lines.append("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text")
 
     def transform(t):
         return t.upper() if text_transform == "uppercase" else t
+
+    if show_intro and song_title:
+        # Determine duration: up to first lyric or max 4 seconds
+        first_lyric_time = lyrics_data[0]['time'] / speed if lyrics_data else duration
+        intro_duration = min(4.0, first_lyric_time)
+        if intro_duration > 0.5:
+            intro_start = to_ass_time(0.0)
+            intro_end = to_ass_time(intro_duration)
+            title = transform(song_title)
+            title_font_size = int(font_size * 1.5)
+            # Add bold & larger text for intro, with fade in/out
+            payload = f"{{\\pos({center_x},{center_y})\\fs{title_font_size}\\b1\\fad(500,500)}}{title}"
+            lines.append(f"Dialogue: 0,{intro_start},{intro_end},Default,,0,0,0,,{payload}")
 
     # Vertical offset between stack lines, scaled to the chosen font size
     stack_offset = int(font_size * 1.4)
@@ -84,9 +98,20 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
         ass_start = to_ass_time(start_time)
         ass_end = to_ass_time(end_time)
 
-        # Current line: bright, centered, fades in/out (same in both styles)
-        text_payload = f"{{\\pos({center_x},{center_y})\\fad(500,500)}}{text}"
-        lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{text_payload}")
+        words = line.get('words')
+        if words and len(words) > 0:
+            k_parts = []
+            for w in words:
+                w_start = w.get('start', start_time) / speed
+                w_end = w.get('end', end_time) / speed
+                dur_cs = max(1, int((w_end - w_start) * 100))
+                w_text = transform(w.get('word', ''))
+                k_parts.append(f"{{\\kf{dur_cs}}}{w_text}")
+            text_payload = f"{{\\pos({center_x},{center_y})\\fad(300,300)}}" + " ".join(k_parts)
+            lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{text_payload}")
+        else:
+            text_payload = f"{{\\pos({center_x},{center_y})\\fad(500,500)}}{text}"
+            lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{text_payload}")
 
         if lyric_style == "stack":
             # Dim previous/next lines above & below, matching the live preview's
@@ -111,6 +136,9 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
                         aspect_ratio="16:9",
                         bg_mode="image", bg_blur=0, bg_dim=0.0, ken_burns=False,
                         grain=0, vignette_strength=0.0, gradient_colors=None,
+                        show_intro=False, song_title="",
+                        mask_subject=False, subject_image_path=None,
+                        overlay_video_path=None, overlay_opacity=0.4, overlay_mode="screen",
                         progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
 
@@ -140,10 +168,18 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     generate_ass_subtitles(
         lyrics_data, ass_path, font_family, font_size, font_color,
         pos_x, pos_y, text_transform, stroke_width, stroke_color,
-        shadow_offset, speed, duration, res_w, res_h, lyric_style
+        shadow_offset, speed, duration, res_w, res_h, lyric_style, show_intro, song_title
     )
 
-    # 4. Construct FFmpeg Command
+    # 4. Check & prepare subject mask if Text-Behind-Subject is enabled
+    if mask_subject:
+        if not subject_image_path or not os.path.exists(subject_image_path):
+            from rotoscope_engine import generate_subject_mask
+            mask_dir = os.path.dirname(output_path)
+            subject_image_path = os.path.join(mask_dir, "subject_mask.png")
+            generate_subject_mask(image_path, subject_image_path)
+
+    # 5. Construct FFmpeg Command
     cmd = ["ffmpeg", "-y"]
 
     use_gradient = (bg_mode == "gradient")
@@ -169,53 +205,130 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     else:
         cmd.extend(["-loop", "1", "-framerate", str(fps), "-i", image_path])
 
+    # Audio input (Input 1)
     cmd.extend(["-i", audio_path])
 
-    # Video filter chain: build the background treatment stages dynamically,
-    # then burn the ASS lyrics on top (always last, so text stays crisp).
-    vf_stages = []
-    if not use_gradient:
-        vf_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
+    # Subject Overlay input (Input 2 if mask_subject)
+    if mask_subject:
+        cmd.extend(["-loop", "1", "-framerate", str(fps), "-i", subject_image_path])
 
-    # Ken Burns slow zoom (stills only) — linear zoom across the whole song.
-    if ken_burns and not is_video and not use_gradient:
-        total_frames = max(1, int(duration * fps))
-        vf_stages.append(
-            f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
-            f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-            f":d=1:s={res_w}x{res_h}:fps={fps}"
-        )
-
-    if bg_blur and float(bg_blur) > 0:
-        vf_stages.append(f"gblur=sigma={float(bg_blur)}")
-    if bg_dim and float(bg_dim) > 0:
-        vf_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
-    if grain and float(grain) > 0:
-        vf_stages.append(f"noise=alls={int(float(grain))}:allf=t")
-    if vignette_strength and float(vignette_strength) > 0:
-        angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
-        vf_stages.append(f"vignette=a={angle:.4f}")
-
-    vf_stages.append(f"ass='{ass_path}'")
-    vf_chain = ",".join(vf_stages)
+    overlay_v_idx = -1
+    if overlay_video_path and os.path.exists(overlay_video_path):
+        cmd.extend(["-stream_loop", "-1", "-i", overlay_video_path])
+        overlay_v_idx = 3 if mask_subject else 2
 
     vcodec = "h264_videotoolbox" if platform.system() == "Darwin" else "libx264"
-    cmd.extend([
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-vf", vf_chain,
-        "-c:v", vcodec, 
-        "-pix_fmt", "yuv420p",
-        "-preset", "ultrafast" if quality == "draft" else "fast",
-        "-b:v", "1M" if quality == "draft" else "3M",
-        "-c:a", "aac",
-        "-t", str(duration),
-        output_path
-    ])
+
+    if mask_subject:
+        # Complex filtergraph: [Background] -> [ASS Text Layer] -> [Subject Overlay PNG]
+        bg_stages = []
+        if not use_gradient:
+            bg_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
+
+        if ken_burns and not is_video and not use_gradient:
+            total_frames = max(1, int(duration * fps))
+            bg_stages.append(
+                f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
+                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d=1:s={res_w}x{res_h}:fps={fps}"
+            )
+
+        if bg_blur and float(bg_blur) > 0:
+            bg_stages.append(f"gblur=sigma={float(bg_blur)}")
+        if bg_dim and float(bg_dim) > 0:
+            bg_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
+        if grain and float(grain) > 0:
+            bg_stages.append(f"noise=alls={int(float(grain))}:allf=t")
+        if vignette_strength and float(vignette_strength) > 0:
+            angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
+            bg_stages.append(f"vignette=a={angle:.4f}")
+
+        bg_stages.append(f"ass='{ass_path}'")
+        bg_chain = ",".join(bg_stages)
+
+        filter_complex = (
+            f"[0:v]{bg_chain}[bg_text];"
+            f"[2:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}[fg];"
+            f"[bg_text][fg]overlay=0:0"
+        )
+        if overlay_v_idx != -1:
+            filter_complex += f"[v_base];[{overlay_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuva420p[ovrl];[v_base][ovrl]blend=all_mode='{overlay_mode}':all_opacity={overlay_opacity}[v]"
+        else:
+            filter_complex += "[v]"
+
+        cmd.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[v]",
+            "-map", "1:a:0",
+            "-c:v", vcodec,
+            "-pix_fmt", "yuv420p",
+            "-preset", "ultrafast" if quality == "draft" else "fast",
+            "-threads", "0",
+            "-b:v", "1M" if quality == "draft" else "3M",
+            "-c:a", "aac",
+            "-t", str(duration),
+            output_path
+        ])
+    else:
+        # Single video filter chain
+        vf_stages = []
+        if not use_gradient:
+            vf_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
+
+        if ken_burns and not is_video and not use_gradient:
+            total_frames = max(1, int(duration * fps))
+            vf_stages.append(
+                f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
+                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d=1:s={res_w}x{res_h}:fps={fps}"
+            )
+
+        if bg_blur and float(bg_blur) > 0:
+            vf_stages.append(f"gblur=sigma={float(bg_blur)}")
+        if bg_dim and float(bg_dim) > 0:
+            vf_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
+        if grain and float(grain) > 0:
+            vf_stages.append(f"noise=alls={int(float(grain))}:allf=t")
+        if vignette_strength and float(vignette_strength) > 0:
+            angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
+            vf_stages.append(f"vignette=a={angle:.4f}")
+
+        vf_stages.append(f"ass='{ass_path}'")
+        vf_chain = ",".join(vf_stages)
+
+        if overlay_v_idx != -1:
+            filter_complex = f"[0:v]{vf_chain}[v_base];[{overlay_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuva420p[ovrl];[v_base][ovrl]blend=all_mode='{overlay_mode}':all_opacity={overlay_opacity}[v]"
+            cmd.extend([
+                "-filter_complex", filter_complex,
+                "-map", "[v]",
+                "-map", "1:a:0",
+                "-c:v", vcodec,
+                "-pix_fmt", "yuv420p",
+                "-preset", "ultrafast" if quality == "draft" else "fast",
+                "-threads", "0",
+                "-b:v", "1M" if quality == "draft" else "3M",
+                "-c:a", "aac",
+                "-t", str(duration),
+                output_path
+            ])
+        else:
+            cmd.extend([
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-vf", vf_chain,
+                "-c:v", vcodec,
+                "-pix_fmt", "yuv420p",
+                "-preset", "ultrafast" if quality == "draft" else "fast",
+                "-threads", "0",
+                "-b:v", "1M" if quality == "draft" else "3M",
+                "-c:a", "aac",
+                "-t", str(duration),
+                output_path
+            ])
     
     print(f"Executing: {' '.join(cmd)}")
     
-    # 5. Execute and Parse Progress
+    # 6. Execute and Parse Progress
     process = subprocess.Popen(cmd, stderr=subprocess.PIPE, universal_newlines=True)
     
     time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")

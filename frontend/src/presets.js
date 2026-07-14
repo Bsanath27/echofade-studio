@@ -3,12 +3,12 @@
 // outline, minimal, soft-glow, fashion-serif, mass-impact). Each sets the full
 // typography stack so one click gives a finished look.
 export const FONT_PRESETS = [
-  { name: '7clouds Clean',  font: 'Montserrat',    size: 64, stroke: 0, strokeColor: '#000000', shadow: 6,  color: '#ffffff', transform: 'uppercase' },
-  { name: 'Bold Outline',   font: 'Montserrat',    size: 72, stroke: 3, strokeColor: '#000000', shadow: 2,  color: '#ffffff', transform: 'uppercase' },
-  { name: 'Minimal',        font: 'Helvetica Neue', size: 54, stroke: 0, strokeColor: '#000000', shadow: 3,  color: '#ffffff', transform: 'none' },
-  { name: 'Soft Glow',      font: 'Montserrat',    size: 66, stroke: 0, strokeColor: '#000000', shadow: 12, color: '#ffffff', transform: 'none' },
-  { name: 'Fashion Serif',  font: 'Didot',         size: 60, stroke: 0, strokeColor: '#000000', shadow: 5,  color: '#ffffff', transform: 'none' },
-  { name: 'Mass Impact',    font: 'Impact',        size: 88, stroke: 2, strokeColor: '#000000', shadow: 4,  color: '#ffffff', transform: 'uppercase' },
+  { name: 'CloudKid Glow',   font: 'Montserrat',    size: 64, stroke: 0, strokeColor: '#000000', shadow: 0,  color: '#ffffff', bloomColor: '#00e5ff', bloomRadius: 15, transform: 'uppercase', preset: 'overshoot-spring' },
+  { name: 'Trap Nation',     font: 'Futura',        size: 72, stroke: 3, strokeColor: '#000000', shadow: 0,  color: '#ffffff', bloomColor: '',        bloomRadius: 0,  transform: 'uppercase', preset: 'line-pop' },
+  { name: 'Lyrical Lemonade',font: 'Impact',        size: 88, stroke: 4, strokeColor: '#000000', shadow: 0,  color: '#ffd700', bloomColor: '',        bloomRadius: 0,  transform: 'uppercase', preset: 'word-stagger' },
+  { name: 'Acoustic Chill',  font: 'Baskerville',   size: 60, stroke: 0, strokeColor: '#000000', shadow: 2,  color: '#ffffff', bloomColor: '',        bloomRadius: 0,  transform: 'none',      preset: 'fade-up' },
+  { name: '7clouds Modern',  font: 'Avenir Next',   size: 64, stroke: 0, strokeColor: '#000000', shadow: 6,  color: '#ffffff', bloomColor: '',        bloomRadius: 0,  transform: 'uppercase', preset: 'line-pop' },
+  { name: 'Cinematic Title', font: 'Didot',         size: 66, stroke: 0, strokeColor: '#000000', shadow: 8,  color: '#ffffff', bloomColor: '#ffffff', bloomRadius: 8,  transform: 'none',      preset: 'fade-up' },
 ]
 
 // ── 8D spatial presets ── (each enables 8D and sets the orbit motion)

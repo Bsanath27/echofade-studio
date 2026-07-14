@@ -25,6 +25,8 @@ export default function StepMaster({
   orbitTime, setOrbitTime,
   orbitDucking, setOrbitDucking,
   orbitWidening, setOrbitWidening,
+  trimStart, setTrimStart,
+  trimEnd, setTrimEnd,
   previewAudioUrl, setPreviewAudioUrl,
   setStatus
 }) {
@@ -52,7 +54,7 @@ export default function StepMaster({
     setIsPreviewing(true)
     setPreviewProgress(0)
     setPreviewStage('starting')
-    setStatus('Rendering full audio preview...')
+    setStatus('Rendering audio preview...')
 
     const jobId = Math.random().toString(36).substring(2, 10)
 
@@ -78,6 +80,8 @@ export default function StepMaster({
     formData.append('orbit_time', orbitTime)
     formData.append('orbit_ducking', orbitDucking)
     formData.append('orbit_widening', orbitWidening / 100.0)
+    formData.append('trim_start', trimStart || 0)
+    formData.append('trim_end', trimEnd || 0)
     try {
       const ts = Date.now()
       const res = await fetch(`${API}/api/preview-audio`, { method: 'POST', body: formData })

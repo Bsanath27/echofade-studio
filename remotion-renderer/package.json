@@ -1,0 +1,22 @@
+{
+  "name": "lyric-video-remotion",
+  "version": "1.0.0",
+  "description": "Remotion renderer for lyric videos",
+  "scripts": {
+    "start": "remotion preview src/index.ts",
+    "build": "remotion render src/index.ts",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.141",
+    "@remotion/media-utils": "4.0.141",
+    "framer-motion": "^11.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "4.0.141"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.26",
+    "typescript": "^5.3.3"
+  }
+}

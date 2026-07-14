@@ -11,6 +11,9 @@ frontend/dist/
 temp/
 *.pyc
 __pycache__/
+remotion-renderer/node_modules/
+remotion-renderer/.chromium/
+.DS_Store
 
 # Unrelated ticketing tooling (not part of this app)
 tickets/
@@ -19,3 +22,15 @@ archive_tickets.py
 create_tickets.py
 download.py
 mt.py
+
+# Temporary, caching, and test assets/outputs
+test_videos/
+assets/
+backend/test.jpg
+backend/test_audio.wav
+backend/test_bg_blue.jpg
+backend/test_*.py
+scripts/workflow_cache.json
+test_sandbox.py
+remotion-renderer/.tmp_chrome/
+remotion-renderer/remotion_test.log

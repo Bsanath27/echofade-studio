@@ -35,6 +35,9 @@ export default function Downloader() {
     setIsLoadingInfo(false)
   }
 
+  const [startTime, setStartTime] = useState(0)
+  const [endTime, setEndTime] = useState(0)
+
   const handleDownload = async () => {
     if (!url.trim()) return
     setIsDownloading(true)
@@ -44,6 +47,8 @@ export default function Downloader() {
     const formData = new FormData()
     formData.append('url', url)
     formData.append('format', format)
+    formData.append('start_time', startTime)
+    formData.append('end_time', endTime)
     
     try {
       const res = await fetch(`${API}/api/downloader/fetch`, {
@@ -111,6 +116,27 @@ export default function Downloader() {
             </Box>
           </Box>
           
+          <Box display="flex" gap={2} mb={3}>
+            <TextField 
+              label="Start Time (seconds)" 
+              type="number"
+              size="small"
+              fullWidth
+              value={startTime}
+              onChange={(e) => setStartTime(Math.max(0, Number(e.target.value) || 0))}
+              helperText="Optional: Start trim (0 = beginning)"
+            />
+            <TextField 
+              label="End Time (seconds)" 
+              type="number"
+              size="small"
+              fullWidth
+              value={endTime}
+              onChange={(e) => setEndTime(Math.max(0, Number(e.target.value) || 0))}
+              helperText="Optional: End trim (0 = full length)"
+            />
+          </Box>
+
           <Box display="flex" gap={2} alignItems="flex-end">
             <Box flex={1}>
               <FormControl fullWidth>

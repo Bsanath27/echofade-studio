@@ -19,8 +19,11 @@ export default function StepExport({
   enable8D, orbitTime, orbitDucking, orbitWidening,
   fontFamily, fontColor, fontSize,
   posX, posY, textTransform, strokeWidth, strokeColor, shadowOffset,
-  lyricStyle, aspectRatio,
+  lyricStyle, lyricPreset, lyricOffset, showIntro, trimStart, trimEnd, canvasMode, aspectRatio,
   bgMode, bgBlur, bgDim, kenBurns, grain, vignette, gradientColors,
+  beatBounce, particles,
+  bloomColor, bloomRadius, beatShake,
+  chromaticAberration, overlayVideoPath,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
   setStatus
@@ -65,6 +68,13 @@ export default function StepExport({
     formData.append('quality', renderQuality)
     formData.append('engine', renderEngine)
     formData.append('lyric_style', lyricStyle)
+    formData.append('lyric_preset', lyricPreset)
+    formData.append('lyric_offset', lyricOffset)
+    formData.append('show_intro', showIntro === true ? 'true' : 'false')
+    formData.append('song_title', songTitle)
+    formData.append('trim_start', trimStart)
+    formData.append('trim_end', trimEnd)
+    formData.append('canvas_mode', canvasMode === true ? 'true' : 'false')
     formData.append('aspect_ratio', aspectRatio)
     formData.append('bg_mode', bgMode)
     formData.append('bg_blur', bgBlur)
@@ -72,6 +82,13 @@ export default function StepExport({
     formData.append('ken_burns', kenBurns)
     formData.append('grain', grain)
     formData.append('vignette_strength', vignette)
+    formData.append('beat_bounce', beatBounce === true ? 'true' : 'false')
+    formData.append('particles', particles === true ? 'true' : 'false')
+    formData.append('bloom_color', bloomColor || '')
+    formData.append('bloom_radius', bloomRadius || 0)
+    formData.append('beat_shake', beatShake === true ? 'true' : 'false')
+    formData.append('chromatic_aberration', chromaticAberration === true ? 'true' : 'false')
+    formData.append('overlay_video_path', overlayVideoPath || '')
     if (gradientColors) formData.append('gradient_colors', JSON.stringify(gradientColors))
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
     formData.append('image', bgFile)
@@ -162,7 +179,8 @@ export default function StepExport({
               <InputLabel>Rendering Engine</InputLabel>
               <Select value={renderEngine} label="Rendering Engine" onChange={(e) => setRenderEngine(e.target.value)}>
                 <MenuItem value="ffmpeg">Ultra-Fast Burn-In (FFmpeg Subtitles) - Recommended</MenuItem>
-                <MenuItem value="moviepy">Legacy Frame-by-Frame (MoviePy) - Slow</MenuItem>
+                <MenuItem value="remotion">Pro-Studio (Kinetic Text, Particles, Audio Reactivity) - Slow</MenuItem>
+                <MenuItem value="moviepy">Legacy Frame-by-Frame (MoviePy) - Slowest</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -205,7 +223,7 @@ export default function StepExport({
       )}
 
       {downloadUrl && (
-        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 4, borderRadius: 2, textAlign: 'center', bgcolor: 'success.dark', color: 'success.contrastText' }}>
+        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", p: 4, borderRadius: 2, textAlign: 'center', bgcolor: 'success.dark', color: 'success.contrastText' }}>
           <Typography variant="h5" fontWeight="bold" gutterBottom>
             Video Rendered Successfully
           </Typography>

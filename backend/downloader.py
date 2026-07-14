@@ -41,9 +41,9 @@ def download_audio(url: str, output_dir: str = "temp") -> Optional[Dict]:
         print(f"Error downloading audio: {e}")
         return None
 
-def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp") -> Optional[Dict]:
+def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp", start_time: float = 0.0, end_time: float = 0.0) -> Optional[Dict]:
     """
-    Downloads media from a URL in the specified format (mp4, mp3, wav).
+    Downloads media from a URL in the specified format (mp4, mp3, wav), with optional time range trimming.
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -53,6 +53,10 @@ def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp")
         'quiet': True,
         'no_warnings': True
     }
+
+    if end_time > start_time:
+        ydl_opts['download_ranges'] = yt_dlp.utils.download_range_func(None, [(start_time, end_time)])
+        ydl_opts['force_keyframes_at_cuts'] = True
     
     if format_type in ["mp3", "wav"]:
         ydl_opts['format'] = 'bestaudio/best'

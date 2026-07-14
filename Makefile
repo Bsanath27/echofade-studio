@@ -1,4 +1,4 @@
-.PHONY: help install run run-backend run-frontend stop clean download-font
+.PHONY: help install run run-backend run-frontend stop clean download-font setup-remotion
 
 help:
 	@echo "Available commands:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make run-backend  - Run only the backend"
 	@echo "  make stop         - Stop the running servers"
 	@echo "  make clean        - Remove dependencies, logs, and temp files"
+	@echo "  make setup-remotion - Download chrome-headless-shell for Remotion"
 
 install:
 	@echo "==> Setting up backend virtual environment..."
@@ -18,11 +19,19 @@ install:
 	backend/venv/bin/pip install -r backend/requirements.txt
 	@echo "==> Installing frontend dependencies..."
 	cd frontend && npm install
+	@echo "==> Installing Remotion renderer dependencies..."
+	cd remotion-renderer && npm install
+	@$(MAKE) setup-remotion
 
 download-font:
 	@echo "==> Downloading Montserrat-Bold font..."
 	curl -sSL "https://github.com/JulietaUla/Montserrat/raw/master/fonts/ttf/Montserrat-Bold.ttf" -o backend/Montserrat-Bold.ttf
 	@echo "==> Font downloaded to backend/Montserrat-Bold.ttf"
+
+setup-remotion:
+	@echo "==> Downloading chrome-headless-shell for Remotion..."
+	bash scripts/setup-remotion-browser.sh
+	@echo "==> Remotion browser ready."
 
 run-backend:
 	@echo "==> Starting backend server..."
@@ -42,8 +51,10 @@ start: run
 
 stop:
 	@echo "==> Stopping services..."
-	@-if [ -f backend/.backend.pid ]; then kill `cat backend/.backend.pid` 2>/dev/null || true; rm backend/.backend.pid; fi
-	@-if [ -f frontend/.frontend.pid ]; then kill `cat frontend/.frontend.pid` 2>/dev/null || true; rm frontend/.frontend.pid; fi
+	@-if [ -f .backend.pid ]; then kill `cat .backend.pid` 2>/dev/null || true; rm .backend.pid; fi
+	@-if [ -f .frontend.pid ]; then kill `cat .frontend.pid` 2>/dev/null || true; rm .frontend.pid; fi
+	@-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	@-lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 	@echo "==> Services stopped."
 
 clean: stop

@@ -9,3 +9,4 @@ python-multipart
 openai-whisper
 Pillow
 pillow-heif
+audioop-lts

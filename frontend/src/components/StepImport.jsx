@@ -32,10 +32,11 @@ export default function StepImport({
         setSongTitle(data.metadata.title || 'Untitled')
         setStatus('')
       } else {
-        setStatus('Error fetching audio.')
+        const errorMsg = data.message || data.detail ? JSON.stringify(data.detail) : JSON.stringify(data)
+        setStatus(`Error: ${errorMsg}`)
       }
-    } catch {
-      setStatus('Failed to connect to backend.')
+    } catch (e) {
+      setStatus(`Network error: ${String(e)}`)
     }
     setIsFetching(false)
   }
@@ -56,7 +57,7 @@ export default function StepImport({
         setSongTitle(data.metadata.title || file.name)
         setStatus('')
       } else {
-        setStatus('Error uploading file.')
+        setStatus(`Upload failed: ${data.message || 'Unknown error'}`)
       }
     } catch {
       setStatus('Failed to connect to backend.')
