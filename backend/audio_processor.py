@@ -139,8 +139,17 @@ def apply_audio_effects(
         # 1. PyDub: Trim & Pure Vinyl Slowdown
         audio_segment = AudioSegment.from_file(input_path)
             
-        if trim_end > trim_start:
-            audio_segment = audio_segment[int(trim_start * 1000):int(trim_end * 1000)]
+        if preview:
+            # For fast editing previews, restrict audio to a maximum of 45 seconds
+            preview_limit = 45.0
+            if trim_end > trim_start:
+                actual_end = min(trim_end, trim_start + preview_limit)
+                audio_segment = audio_segment[int(trim_start * 1000):int(actual_end * 1000)]
+            else:
+                audio_segment = audio_segment[int(trim_start * 1000):int((trim_start + preview_limit) * 1000)]
+        else:
+            if trim_end > trim_start:
+                audio_segment = audio_segment[int(trim_start * 1000):int(trim_end * 1000)]
             
 
         if speed != 1.0:
