@@ -93,7 +93,7 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
         start_time = line['time'] / speed
         end_time = lyrics_data[i+1]['time'] / speed if i < len(lyrics_data) - 1 else duration
 
-        text = transform(line['text'])
+        text = transform(line['text'].replace('{', '(').replace('}', ')'))
 
         ass_start = to_ass_time(start_time)
         ass_end = to_ass_time(end_time)
@@ -105,7 +105,7 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
                 w_start = w.get('start', start_time) / speed
                 w_end = w.get('end', end_time) / speed
                 dur_cs = max(1, int((w_end - w_start) * 100))
-                w_text = transform(w.get('word', ''))
+                w_text = transform(w.get('word', '').replace('{', '(').replace('}', ')'))
                 k_parts.append(f"{{\\kf{dur_cs}}}{w_text}")
             text_payload = f"{{\\pos({center_x},{center_y})\\fad(300,300)}}" + " ".join(k_parts)
             lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{text_payload}")
@@ -118,11 +118,11 @@ def generate_ass_subtitles(lyrics_data, ass_path, font_family, font_size, font_c
             # 3-line karaoke stack. Always rendered in semi-transparent white,
             # regardless of the user's chosen font color, mirroring the preview.
             if i > 0:
-                prev_text = transform(lyrics_data[i-1]['text'])
+                prev_text = transform(lyrics_data[i-1]['text'].replace('{', '(').replace('}', ')'))
                 prev_payload = f"{{\\pos({center_x},{center_y - stack_offset})\\alpha&H99&\\fs{dim_font_size}\\c&HFFFFFF&\\bord0\\shad0\\fad(500,500)}}{prev_text}"
                 lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{prev_payload}")
             if i < len(lyrics_data) - 1:
-                next_text = transform(lyrics_data[i+1]['text'])
+                next_text = transform(lyrics_data[i+1]['text'].replace('{', '(').replace('}', ')'))
                 next_payload = f"{{\\pos({center_x},{center_y + stack_offset})\\alpha&H99&\\fs{dim_font_size}\\c&HFFFFFF&\\bord0\\shad0\\fad(500,500)}}{next_text}"
                 lines.append(f"Dialogue: 0,{ass_start},{ass_end},Default,,0,0,0,,{next_payload}")
 

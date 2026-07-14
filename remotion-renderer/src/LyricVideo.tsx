@@ -18,7 +18,22 @@ export const LyricVideo: React.FC<{
   bloomRadius?: number;
   beatShake?: boolean;
   chromaticAberration?: boolean;
-}> = ({ audioUrl, bgUrl, lyrics, lyricPreset = 'line-pop', beatBounce = false, particles = false, showIntro = false, songTitle = '', bloomColor, bloomRadius, beatShake = false, chromaticAberration = false }) => {
+  fontFamily?: string;
+  fontSize?: number;
+  fontColor?: string;
+  posX?: number;
+  posY?: number;
+  textTransform?: string;
+  strokeWidth?: number;
+  strokeColor?: string;
+  shadowOffset?: number;
+  lyricStyle?: string;
+}> = ({
+  audioUrl, bgUrl, lyrics, lyricPreset = 'line-pop', beatBounce = false, particles = false,
+  showIntro = false, songTitle = '', bloomColor, bloomRadius, beatShake = false, chromaticAberration = false,
+  fontFamily = 'Montserrat', fontSize = 60, fontColor = '#ffffff', posX = 50, posY = 50,
+  textTransform = 'uppercase', strokeWidth = 2, strokeColor = '#000000', shadowOffset = 4, lyricStyle = 'single'
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   
@@ -123,6 +138,16 @@ export const LyricVideo: React.FC<{
             words={lyric.words}
             bloomColor={bloomColor}
             bloomRadius={bloomRadius}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            fontColor={fontColor}
+            posX={posX}
+            posY={posY}
+            textTransform={textTransform}
+            strokeWidth={strokeWidth}
+            strokeColor={strokeColor}
+            shadowOffset={shadowOffset}
+            lyricStyle={lyricStyle}
           />
         );
       })}

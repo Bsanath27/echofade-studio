@@ -15,7 +15,21 @@ export const KineticText: React.FC<{
   words?: WordData[];
   bloomColor?: string;
   bloomRadius?: number;
-}> = ({ text, startTime, duration, preset = 'line-pop', words: rawWords, bloomColor, bloomRadius }) => {
+  fontFamily?: string;
+  fontSize?: number;
+  fontColor?: string;
+  posX?: number;
+  posY?: number;
+  textTransform?: string;
+  strokeWidth?: number;
+  strokeColor?: string;
+  shadowOffset?: number;
+  lyricStyle?: string;
+}> = ({
+  text, startTime, duration, preset = 'line-pop', words: rawWords, bloomColor, bloomRadius,
+  fontFamily = 'Montserrat', fontSize = 60, fontColor = '#ffffff', posX = 50, posY = 50,
+  textTransform = 'uppercase', strokeWidth = 2, strokeColor = '#000000', shadowOffset = 4, lyricStyle = 'single'
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -72,8 +86,8 @@ export const KineticText: React.FC<{
         gap: '20px',
         width: '85%',
         position: 'absolute',
-        top: '50%',
-        left: '50%',
+        top: `${posY}%`,
+        left: `${posX}%`,
         transform: 'translate(-50%, -50%)',
       }}
     >
@@ -155,19 +169,34 @@ export const KineticText: React.FC<{
         let textShadow = '0px 10px 30px rgba(0,0,0,0.8)';
         let transformStr = `translateY(${yOffset}px) scale(${lineScale * activeScale})`;
 
+        const userColor = fontColor || '#ffffff';
         if (isActive) {
-          color = '#ffffff';
+          color = userColor;
           opacity = 1;
+          
+          const shadows = [];
           if (bloomColor && bloomRadius) {
-            textShadow = `0 0 10px rgba(255, 255, 255, 0.8), 0 0 ${bloomRadius}px ${bloomColor}, 0 0 ${bloomRadius * 2}px ${bloomColor}`;
-          } else {
-            textShadow =
-              '0 0 20px rgba(255, 255, 255, 1.0), 0 0 35px rgba(255, 215, 0, 0.8), 0px 10px 30px rgba(0,0,0,0.9)';
+            shadows.push(`0 0 10px rgba(255, 255, 255, 0.8), 0 0 ${bloomRadius}px ${bloomColor}, 0 0 ${bloomRadius * 2}px ${bloomColor}`);
           }
+          if (strokeWidth && strokeWidth > 0) {
+            shadows.push(`-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}`);
+          }
+          if (shadowOffset && shadowOffset > 0) {
+            shadows.push(`${shadowOffset}px ${shadowOffset}px ${Math.max(2, shadowOffset)}px rgba(0,0,0,0.8)`);
+          }
+          textShadow = shadows.join(', ') || 'none';
         } else if (isPast) {
-          color = '#ffffff';
+          color = userColor;
           opacity = 0.95;
-          textShadow = '0px 10px 30px rgba(0,0,0,0.8)';
+          
+          const shadows = [];
+          if (strokeWidth && strokeWidth > 0) {
+            shadows.push(`-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}`);
+          }
+          if (shadowOffset && shadowOffset > 0) {
+            shadows.push(`${shadowOffset}px ${shadowOffset}px ${Math.max(2, shadowOffset)}px rgba(0,0,0,0.8)`);
+          }
+          textShadow = shadows.join(', ') || 'none';
         } else if (isFuture) {
           color = 'rgba(255, 255, 255, 0.45)';
           opacity = 0.45 * lineOpacity;
@@ -178,14 +207,15 @@ export const KineticText: React.FC<{
           <span
             key={i}
             style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: '80px',
+              fontFamily: fontFamily === 'Montserrat' ? "'Montserrat', sans-serif" : `"${fontFamily}", sans-serif`,
+              fontSize: `${fontSize}px`,
               fontWeight: 900,
               color,
               display: 'inline-block',
               transform: transformStr,
               opacity,
               textShadow,
+              textTransform: textTransform === 'uppercase' ? 'uppercase' : (textTransform === 'lowercase' ? 'lowercase' : 'none'),
               transition: 'color 0.1s ease, opacity 0.1s ease, text-shadow 0.1s ease',
             }}
           >

@@ -101,7 +101,17 @@ def create_video_remotion(
         "bloomColor": kwargs.get("bloom_color"),
         "bloomRadius": kwargs.get("bloom_radius"),
         "beatShake": kwargs.get("beat_shake", False),
-        "chromaticAberration": kwargs.get("chromatic_aberration", False)
+        "chromaticAberration": kwargs.get("chromatic_aberration", False),
+        "fontFamily": kwargs.get("font_family", "Montserrat"),
+        "fontSize": kwargs.get("font_size", 60),
+        "fontColor": kwargs.get("font_color", "#ffffff"),
+        "posX": kwargs.get("pos_x", 50),
+        "posY": kwargs.get("pos_y", 50),
+        "textTransform": kwargs.get("text_transform", "uppercase"),
+        "strokeWidth": kwargs.get("stroke_width", 2),
+        "strokeColor": kwargs.get("stroke_color", "#000000"),
+        "shadowOffset": kwargs.get("shadow_offset", 4),
+        "lyricStyle": kwargs.get("lyric_style", "single"),
     }
 
     with open(props_path, 'w') as f:

@@ -66,13 +66,13 @@ def create_video(
     if system == "Darwin":
         font_map = {
             "Montserrat": montserrat_path,
-            "Arial": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "Helvetica Neue": "/System/Library/Fonts/Supplemental/Trebuchet MS Bold.ttf",
-            "Impact": "/System/Library/Fonts/Supplemental/Impact.ttf",
-            "Avenir Next": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
-            "Futura": "/System/Library/Fonts/Supplemental/DIN Alternate Bold.ttf",
-            "Didot": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-            "Baskerville": "/System/Library/Fonts/Supplemental/Georgia Bold.ttf"
+            "Arial": "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if os.path.exists("/System/Library/Fonts/Supplemental/Arial Bold.ttf") else "/Library/Fonts/Arial Bold.ttf",
+            "Helvetica Neue": "/System/Library/Fonts/HelveticaNeue.ttc",
+            "Impact": "/System/Library/Fonts/Supplemental/Impact.ttf" if os.path.exists("/System/Library/Fonts/Supplemental/Impact.ttf") else "/Library/Fonts/Impact.ttf",
+            "Avenir Next": "/System/Library/Fonts/Avenir Next.ttc",
+            "Futura": "/System/Library/Fonts/Futura.ttc",
+            "Didot": "/System/Library/Fonts/Didot.ttc",
+            "Baskerville": "/System/Library/Fonts/Baskerville.ttc"
         }
     elif system == "Windows":
         font_map = {
