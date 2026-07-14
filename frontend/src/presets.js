@@ -9,6 +9,9 @@ export const FONT_PRESETS = [
   { name: 'Acoustic Chill',  font: 'Baskerville',   size: 60, stroke: 0, strokeColor: '#000000', shadow: 2,  color: '#ffffff', bloomColor: '',        bloomRadius: 0,  transform: 'none',      preset: 'fade-up' },
   { name: '7clouds Modern',  font: 'Avenir Next',   size: 64, stroke: 0, strokeColor: '#000000', shadow: 6,  color: '#ffffff', bloomColor: '',        bloomRadius: 0,  transform: 'uppercase', preset: 'line-pop' },
   { name: 'Cinematic Title', font: 'Didot',         size: 66, stroke: 0, strokeColor: '#000000', shadow: 8,  color: '#ffffff', bloomColor: '#ffffff', bloomRadius: 8,  transform: 'none',      preset: 'fade-up' },
+  { name: 'Retro Waves',     font: 'Helvetica Neue',size: 70, stroke: 0, strokeColor: '#000000', shadow: 4,  color: '#ff007f', bloomColor: '#ff007f', bloomRadius: 12, transform: 'uppercase', preset: 'overshoot-spring' },
+  { name: 'Cyberpunk Neon',  font: 'Futura',        size: 76, stroke: 2, strokeColor: '#000000', shadow: 0,  color: '#39ff14', bloomColor: '#39ff14', bloomRadius: 20, transform: 'uppercase', preset: 'line-pop' },
+  { name: 'Elegant Poetry',  font: 'Didot',         size: 56, stroke: 0, strokeColor: '#000000', shadow: 0,  color: '#fffdd0', bloomColor: '#fffdd0', bloomRadius: 5,  transform: 'none',      preset: 'fade-up' },
 ]
 
 // ── 8D spatial presets ── (each enables 8D and sets the orbit motion)

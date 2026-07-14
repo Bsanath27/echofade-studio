@@ -152,11 +152,11 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
         res_w, res_h = (1920, 1080) if quality == "final" else (854, 480)
     fps = 24 if quality == "final" else 15
     
-    # Scale font size for draft (to maintain proportion)
-    if quality == "draft":
-        font_size = int(font_size * (480 / 1080))
-        stroke_width = max(1, int(stroke_width * (480 / 1080))) if stroke_width > 0 else 0
-        shadow_offset = max(1, int(shadow_offset * (480 / 1080))) if shadow_offset > 0 else 0
+    # Proportional Scaling: Scale fonts, strokes, and shadows relative to the design height (1080px)
+    scale_factor = res_h / 1080.0
+    font_size = int(font_size * scale_factor)
+    stroke_width = max(1, int(stroke_width * scale_factor)) if stroke_width > 0 else 0
+    shadow_offset = max(1, int(shadow_offset * scale_factor)) if shadow_offset > 0 else 0
 
     # 2. Get Audio Duration
     cmd_probe = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", audio_path]

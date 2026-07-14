@@ -724,6 +724,7 @@ export default function StepLyrics({
           <Box sx={{
             display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
             borderRadius: 2, background: '#000', mx: 'auto', border: 1, borderColor: 'divider',
+            containerType: 'size',
             ...(aspectRatio === '9:16'
               ? { height: 500, aspectRatio: '9 / 16', maxWidth: '100%' }
               : { width: '100%', aspectRatio: '16 / 9', maxHeight: 460 })
@@ -829,8 +830,8 @@ export default function StepLyrics({
                           <Box 
                             key={lineIdx} 
                             className={offset === 0 && lyricPreset === 'line-pop' ? 'kinetic-lyric-active' : ''}
-                            sx={{
-                              fontSize: offset === 0 ? `${Math.max(1, fontSize / 30)}rem` : `${Math.max(0.8, fontSize / 40)}rem`,
+                             sx={{
+                              fontSize: offset === 0 ? `${fontSize / 10.8}cqh` : `${(fontSize * 0.75) / 10.8}cqh`,
                               fontWeight: 700,
                               color: offset === 0 ? fontColor : 'rgba(255,255,255,0.4)',
                               textTransform: textTransform,

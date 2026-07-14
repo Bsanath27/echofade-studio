@@ -367,7 +367,7 @@ export default function RotoscopeStudio({
 
   const getLyricsStyle = (isActive) => {
     return {
-      fontSize: isActive ? `${Math.max(1, fontSize / 30)}rem` : `${Math.max(0.8, fontSize / 40)}rem`,
+      fontSize: isActive ? `${fontSize / 10.8}cqh` : `${(fontSize * 0.75) / 10.8}cqh`,
       fontWeight: 700,
       color: isActive ? fontColor : 'rgba(255,255,255,0.4)',
       textTransform: textTransform,
