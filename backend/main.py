@@ -355,12 +355,12 @@ async def suggest_colors(
 async def fetch_audio(url: str = Form(...)):
     print(f"Downloading audio from {url}...")
     try:
-        info = download_audio(url, output_dir=TEMP_DIR)
+        info = await asyncio.to_thread(download_audio, url, TEMP_DIR)
 
         if not info:
             return {"status": "error", "message": "Failed to download audio. Check the youtube link."}
 
-        raw_lrc, parsed_lyrics = extract_lyrics(info['title'], info['artist'])
+        raw_lrc, parsed_lyrics = await asyncio.to_thread(extract_lyrics, info['title'], info['artist'])
 
         return {
             "status": "success",

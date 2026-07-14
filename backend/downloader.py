@@ -1,12 +1,32 @@
 import os
 import yt_dlp
 from typing import Optional, Dict
+from urllib.parse import urlparse, parse_qs
+
+def clean_youtube_url(url: str) -> str:
+    """
+    Cleans YouTube URLs to prevent downloading entire playlists or mixes.
+    Only keeps the 'v' video parameter.
+    """
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc in ['youtu.be', 'www.youtu.be']:
+            return f"https://youtu.be{parsed.path}"
+        elif 'youtube.com' in parsed.netloc:
+            qs = parse_qs(parsed.query)
+            video_id = qs.get('v')
+            if video_id:
+                return f"https://www.youtube.com/watch?v={video_id[0]}"
+    except Exception:
+        pass
+    return url
 
 def download_audio(url: str, output_dir: str = "temp") -> Optional[Dict]:
     """
     Downloads the highest quality audio from a YouTube URL.
     Returns metadata including the path to the downloaded file.
     """
+    url = clean_youtube_url(url)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
@@ -51,6 +71,7 @@ def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp",
     """
     Downloads media from a URL in the specified format (mp4, mp3, wav), with optional time range trimming.
     """
+    url = clean_youtube_url(url)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
@@ -102,6 +123,7 @@ def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp",
         return None
 
 def extract_media_info(url: str) -> Optional[Dict]:
+    url = clean_youtube_url(url)
     try:
         with yt_dlp.YoutubeDL({
             'quiet': True,
