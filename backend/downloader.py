@@ -19,7 +19,13 @@ def download_audio(url: str, output_dir: str = "temp") -> Optional[Dict]:
             'preferredquality': '192',
         }],
         'quiet': True,
-        'no_warnings': True
+        'no_warnings': True,
+        'source_address': '0.0.0.0',              # Force IPv4 to bypass IPv6 DNS resolving bottlenecks
+        'youtube_include_dash_manifest': False,   # Speed up extraction by ignoring DASH manifests
+        'youtube_include_hls_manifest': False,    # Speed up extraction by ignoring HLS manifests
+        'check_formats': 'cached',                # Avoid slow verification of individual format streams
+        'noplaylist': True,                       # Prevent downloading full playlist if URL is in a list
+        'concurrent_fragments': 4,                # Download chunks concurrently for maximum speed
     }
     
     try:
@@ -51,7 +57,13 @@ def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp",
     ydl_opts = {
         'outtmpl': f'{output_dir}/%(title)s.%(ext)s',
         'quiet': True,
-        'no_warnings': True
+        'no_warnings': True,
+        'source_address': '0.0.0.0',              # Force IPv4
+        'youtube_include_dash_manifest': False,
+        'youtube_include_hls_manifest': False,
+        'check_formats': 'cached',
+        'noplaylist': True,
+        'concurrent_fragments': 4,
     }
 
     if end_time > start_time:
@@ -91,7 +103,15 @@ def download_media(url: str, format_type: str = "mp4", output_dir: str = "temp",
 
 def extract_media_info(url: str) -> Optional[Dict]:
     try:
-        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+        with yt_dlp.YoutubeDL({
+            'quiet': True,
+            'no_warnings': True,
+            'source_address': '0.0.0.0',              # Force IPv4
+            'youtube_include_dash_manifest': False,
+            'youtube_include_hls_manifest': False,
+            'check_formats': 'cached',
+            'noplaylist': True,
+        }) as ydl:
             info = ydl.extract_info(url, download=False)
             return {
                 "title": info.get('title', 'Unknown'),
