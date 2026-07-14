@@ -56,6 +56,7 @@ export default function RotoscopeStudio({
   const [maskMethod, setMaskMethod] = useState('')  // 'rembg', 'grabcut', 'floodfill', 'pil'
   const [isAudioPlaying, setIsAudioPlaying] = useState(false)
   const [currentLineIdx, setCurrentLineIdx] = useState(-1)
+  const [analyserData, setAnalyserData] = useState({ bass: 0, treble: 0 })
 
   const mainCanvasRef = useRef(null)
   const zoomCanvasRef = useRef(null)
@@ -63,6 +64,10 @@ export default function RotoscopeStudio({
   const pendingPointsRef = useRef(null)
   const audioRef = useRef(null)
   const particlesCanvasRef = useRef(null)
+  const audioContextRef = useRef(null)
+  const analyserRef = useRef(null)
+  const sourceRef = useRef(null)
+  const analyserLoopRef = useRef(null)
 
   // Sync with elevated bgFile if it changes globally
   useEffect(() => {
@@ -115,6 +120,97 @@ export default function RotoscopeStudio({
     audio.addEventListener('timeupdate', onTimeUpdate)
     return () => audio.removeEventListener('timeupdate', onTimeUpdate)
   }, [parsedLines])
+
+  // 1. Audio Analyser setup for beat-reactive visual effects in masking step
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const setupAnalyser = () => {
+      if (audioContextRef.current) return
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext
+        const ctx = new AudioContextClass()
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 256
+        
+        const source = ctx.createMediaElementSource(audio)
+        source.connect(analyser)
+        analyser.connect(ctx.destination)
+        
+        audioContextRef.current = ctx
+        analyserRef.current = analyser
+        sourceRef.current = source
+      } catch (err) {
+        console.warn("Web Audio API blocked or not supported: ", err)
+      }
+    }
+
+    let isPlaying = false
+    const runAnalysis = () => {
+      const analyser = analyserRef.current
+      if (!analyser) return
+      
+      const bufferLength = analyser.frequencyBinCount
+      const dataArray = new Uint8Array(bufferLength)
+      
+      const loop = () => {
+        if (!isPlaying) return
+        analyser.getByteFrequencyData(dataArray)
+        
+        // Bass frequency bins 1 to 8 (20Hz - 150Hz)
+        let bassSum = 0
+        const bassBins = 8
+        for (let i = 1; i <= bassBins; i++) {
+          bassSum += dataArray[i]
+        }
+        const bassVal = bassSum / (bassBins * 255)
+
+        // Treble frequency bins 40 to 70 (1kHz - 3kHz)
+        let trebleSum = 0
+        const startBin = 40
+        const trebleBins = 30
+        for (let i = startBin; i < startBin + trebleBins; i++) {
+          trebleSum += dataArray[i]
+        }
+        const trebleVal = trebleSum / (trebleBins * 255)
+
+        setAnalyserData({ bass: bassVal, treble: trebleVal })
+        analyserLoopRef.current = requestAnimationFrame(loop)
+      }
+      loop()
+    }
+
+    const handlePlay = () => {
+      setupAnalyser()
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume()
+      }
+      isPlaying = true
+      runAnalysis()
+    }
+
+    const handlePause = () => {
+      isPlaying = false
+      if (analyserLoopRef.current) {
+        cancelAnimationFrame(analyserLoopRef.current)
+      }
+      setAnalyserData({ bass: 0, treble: 0 })
+    }
+
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('ended', handlePause)
+    
+    return () => {
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('ended', handlePause)
+      if (analyserLoopRef.current) {
+        cancelAnimationFrame(analyserLoopRef.current)
+      }
+    }
+  }, [])
 
   // Particles animation loop
   useEffect(() => {
@@ -366,6 +462,9 @@ export default function RotoscopeStudio({
   }
 
   const getLyricsStyle = (isActive) => {
+    const isCAActive = chromaticAberration && analyserData.bass > 0.15
+    const caShift = isCAActive ? analyserData.bass * 10 : 0
+
     return {
       fontSize: isActive ? `${fontSize / 10.8}cqh` : `${(fontSize * 0.75) / 10.8}cqh`,
       fontWeight: 700,
@@ -375,6 +474,7 @@ export default function RotoscopeStudio({
       fontFamily: fontFamily === 'Montserrat' ? "'Montserrat', sans-serif" : `"${fontFamily}", sans-serif`,
       textShadow: isActive ? (
         [
+          isCAActive ? `-${caShift}px 0 0 rgba(255,0,0,0.65), ${caShift}px 0 0 rgba(0,255,255,0.65)` : null,
           strokeWidth > 0 ? `-${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px -${strokeWidth}px 0 ${strokeColor}, -${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}, ${strokeWidth}px ${strokeWidth}px 0 ${strokeColor}` : null,
           shadowOffset > 0 ? `${shadowOffset}px ${shadowOffset}px ${Math.max(2, shadowOffset)}px rgba(0,0,0,0.8)` : null,
           bloomRadius > 0 && bloomColor ? `0 0 ${bloomRadius}px ${bloomColor}, 0 0 ${bloomRadius * 1.5}px ${bloomColor}` : null
@@ -524,6 +624,17 @@ export default function RotoscopeStudio({
               </ToggleButton>
             </Box>
 
+            <style>{`
+              @keyframes overshootSpring {
+                0% { transform: scale(0.65); opacity: 0; }
+                75% { transform: scale(1.1); opacity: 0.9; }
+                100% { transform: scale(1); opacity: 1; }
+              }
+              .kinetic-lyric-active {
+                animation: overshootSpring 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+              }
+            `}</style>
+
             {/* Visualizer Frame */}
             <Box 
               sx={{ 
@@ -536,58 +647,102 @@ export default function RotoscopeStudio({
                 alignItems: 'center',
                 justifyContent: 'center',
                 mb: 3,
-                border: '1px solid #333'
+                border: '1px solid #333',
+                containerType: 'size'
               }}
             >
-              {bgUrl && (
-                <img src={bgUrl} style={{
-                  position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
-                  objectFit: 'cover', zIndex: 1,
-                  filter: bgBlur > 0 ? `blur(${bgBlur * 0.45}px) brightness(${1 - bgDim})` : `brightness(${1 - bgDim})`
-                }} />
-              )}
+              {/* Content wrapper that shakes and bounces to audio peaks */}
+              <Box sx={{
+                position: 'absolute', inset: 0,
+                transform: `translate(${beatShake ? (Math.random() - 0.5) * analyserData.bass * 16 : 0}px, ${beatShake ? (Math.random() - 0.5) * analyserData.bass * 16 : 0}px) scale(${beatBounce ? (1 + analyserData.bass * 0.04) : 1})`,
+                transformOrigin: 'center',
+                width: '100%', height: '100%',
+                transition: 'transform 0.05s ease-out',
+                zIndex: 1
+              }}>
+                {/* Chosen gradient background (overrides the image when picked) */}
+                {bgMode === 'gradient' && gradientColors && (
+                  <Box sx={{ position: 'absolute', inset: 0, background: `linear-gradient(160deg, ${gradientColors.join(', ')})`, zIndex: 1 }} />
+                )}
 
-              {/* Particles layer */}
-              {particles && (
-                <canvas 
-                  ref={particlesCanvasRef}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none' }}
-                />
-              )}
+                {/* Background Media */}
+                {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
+                  const isVid = bgFile?.type?.startsWith('video/') || bgFile?.name?.endsWith('.mp4') || bgFile?.name?.endsWith('.mov') || bgFile?.name?.endsWith('.webm') || bgFile?.name?.endsWith('.gif')
+                  const blurPx = bgBlur * 0.45
+                  const baseScale = kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5)
+                  const mediaStyle = {
+                    width: '100%', height: '100%', objectFit: 'cover',
+                    position: 'absolute', top: 0, left: 0,
+                    filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+                    transform: `scale(${baseScale})`,
+                    transformOrigin: 'center',
+                    transition: kenBurns ? 'transform 20s ease-in-out' : 'none',
+                    zIndex: 1
+                  }
+                  return isVid
+                    ? <video src={bgUrl} autoPlay loop muted style={mediaStyle} />
+                    : <img src={bgUrl} style={mediaStyle} />
+                })()}
 
-              {/* Lyrics Layer (zIndex 5) */}
-              {parsedLines.length > 0 && (
-                <Box 
-                  sx={{
-                    position: 'absolute',
-                    top: `${posY}%`,
-                    left: `${posX}%`,
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 5,
-                    textAlign: 'center',
-                    pointerEvents: 'none',
-                    width: '90%'
-                  }}
-                >
-                  {/* Render 3 lines: previous, active, next */}
-                  {[-1, 0, 1].map(offset => {
-                    const lineIdx = currentLineIdx + offset
-                    if (lineIdx < 0 || lineIdx >= parsedLines.length) return null
-                    const line = parsedLines[lineIdx]
-                    
-                    return (
-                      <Box 
-                        key={lineIdx} 
-                        sx={getLyricsStyle(offset === 0)}
-                      >
-                        {line.text}
-                      </Box>
-                    )
-                  })}
-                </Box>
-              )}
+                {/* Post-Processing Overlays */}
+                {bgDim > 0 && <Box sx={{position: 'absolute', inset: 0, bgcolor: 'black', opacity: bgDim, zIndex: 2}} />}
+                {grain > 0 && <Box sx={{
+                  position: 'absolute', inset: 0, mixBlendMode: 'overlay', zIndex: 3,
+                  opacity: Math.min(grain / 30 * 0.65, 0.65),
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+                }} />}
+                {vignette > 0 && <Box sx={{
+                  position: 'absolute', inset: 0, zIndex: 4,
+                  background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${vignette}) 100%)`
+                }} />}
 
-              {/* Subject Cutout Layer (zIndex 10) */}
+                {/* Particles layer */}
+                {particles && (
+                  <canvas 
+                    ref={particlesCanvasRef}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 6, pointerEvents: 'none' }}
+                  />
+                )}
+
+                {/* Lyrics Layer (zIndex 7) */}
+                {parsedLines.length > 0 && (
+                  <Box 
+                    sx={{
+                      position: 'absolute',
+                      top: `${posY}%`,
+                      left: `${posX}%`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 7,
+                      textAlign: 'center',
+                      pointerEvents: 'none',
+                      width: '90%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '5px'
+                    }}
+                  >
+                    {/* Respect lyricStyle single vs stack setting */}
+                    {(lyricStyle === 'stack' ? [-1, 0, 1] : [0]).map(offset => {
+                      const effectiveLineIdx = currentLineIdx < 0 ? 0 : currentLineIdx
+                      const lineIdx = effectiveLineIdx + offset
+                      if (lineIdx < 0 || lineIdx >= parsedLines.length) return null
+                      const line = parsedLines[lineIdx]
+                      
+                      return (
+                        <Box 
+                          key={lineIdx} 
+                          className={offset === 0 && lyricPreset === 'line-pop' ? 'kinetic-lyric-active' : ''}
+                          sx={getLyricsStyle(offset === 0)}
+                        >
+                          {line.text}
+                        </Box>
+                      )
+                    })}
+                  </Box>
+                )}
+              </Box>
+
+              {/* Subject Cutout Layer (zIndex 10) - Rendered outside content wrapper to prevent shake/bounce */}
               {maskSubject && subjectOverlayUrl && (
                 <img src={subjectOverlayUrl} style={{
                   position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
