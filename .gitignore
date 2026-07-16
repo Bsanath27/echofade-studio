@@ -34,3 +34,6 @@ scripts/workflow_cache.json
 test_sandbox.py
 remotion-renderer/.tmp_chrome/
 remotion-renderer/remotion_test.log
+
+# MoviePy temporary files
+*TEMP_MPY_*
