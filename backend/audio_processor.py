@@ -105,12 +105,41 @@ def apply_audio_effects(
     progress_start: int = 0,
     progress_end: int = 100,
     trim_start: float = 0.0,
-    trim_end: float = 0.0
+    trim_end: float = 0.0,
+    skip_audio_processing: bool = False
 ) -> str:
     """
     Applies pure vinyl slowdown, true 360-degree 8D spatial panning, Abbey Road EQ'd reverb,
     saturation, EQ, mastering limiter, and -14 LUFS loudness normalization.
+    If skip_audio_processing is True, skips all effects but still applies trims if requested.
     """
+    if skip_audio_processing:
+        if (trim_end > trim_start) or (trim_start > 0) or preview:
+            audio_segment = AudioSegment.from_file(input_path)
+            if preview:
+                preview_limit = 45.0
+                if trim_end > trim_start:
+                    actual_end = min(trim_end, trim_start + preview_limit)
+                    audio_segment = audio_segment[int(trim_start * 1000):int(actual_end * 1000)]
+                else:
+                    audio_segment = audio_segment[int(trim_start * 1000):int((trim_start + preview_limit) * 1000)]
+            else:
+                if trim_end > trim_start:
+                    audio_segment = audio_segment[int(trim_start * 1000):int(trim_end * 1000)]
+                elif trim_start > 0:
+                    audio_segment = audio_segment[int(trim_start * 1000):]
+            audio_segment.export(output_path, format="wav")
+        else:
+            shutil.copy(input_path, output_path)
+
+        if progress_file:
+            try:
+                with open(progress_file, 'w') as f:
+                    json.dump({"progress": progress_end, "stage": "audio_skipped"}, f)
+            except Exception:
+                pass
+        return output_path
+
     stages = ["slowdown"] + (["8d"] if enable_8d else []) + ["eq_reverb", "mastering"]
     if enable_normalization:
         stages.append("normalization")

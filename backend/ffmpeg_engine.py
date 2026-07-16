@@ -139,6 +139,7 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
                         show_intro=False, song_title="",
                         mask_subject=False, subject_image_path=None,
                         overlay_video_path=None, overlay_opacity=0.4, overlay_mode="screen",
+                        intro_video_path=None,
                         progress_file=None, progress_start=0, progress_end=100):
     print("Initializing Ultra-Fast FFmpeg Engine...")
 
@@ -223,57 +224,87 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
     # Audio input (Input 1)
     cmd.extend(["-i", audio_path])
 
+    # Track inputs index
+    curr_idx = 2
+
     # Subject Overlay input (Input 2 if mask_subject)
+    mask_v_idx = -1
     if mask_subject:
         cmd.extend(["-loop", "1", "-framerate", str(fps), "-i", subject_image_path])
+        mask_v_idx = curr_idx
+        curr_idx += 1
 
+    # Overlay Video input
     overlay_v_idx = -1
     if overlay_video_path and os.path.exists(overlay_video_path):
         cmd.extend(["-stream_loop", "-1", "-i", overlay_video_path])
-        overlay_v_idx = 3 if mask_subject else 2
+        overlay_v_idx = curr_idx
+        curr_idx += 1
+
+    # Intro Video input
+    use_intro = False
+    intro_v_idx = -1
+    if intro_video_path and os.path.exists(intro_video_path):
+        use_intro = True
+        cmd.extend(["-i", intro_video_path])
+        intro_v_idx = curr_idx
+        curr_idx += 1
 
     vcodec = "h264_videotoolbox" if platform.system() == "Darwin" else "libx264"
 
-    if mask_subject:
-        # Complex filtergraph: [Background] -> [ASS Text Layer] -> [Subject Overlay PNG]
-        bg_stages = []
-        if not use_gradient:
-            bg_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
+    # Compile the base background pipeline
+    vf_stages = []
+    if not use_gradient:
+        vf_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
 
-        if ken_burns and not is_video and not use_gradient:
-            total_frames = max(1, int(duration * fps))
-            bg_stages.append(
-                f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
-                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-                f":d=1:s={res_w}x{res_h}:fps={fps}"
-            )
-
-        if bg_blur and float(bg_blur) > 0:
-            bg_stages.append(f"gblur=sigma={float(bg_blur)}")
-        if bg_dim and float(bg_dim) > 0:
-            bg_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
-        if grain and float(grain) > 0:
-            bg_stages.append(f"noise=alls={int(float(grain))}:allf=t")
-        if vignette_strength and float(vignette_strength) > 0:
-            angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
-            bg_stages.append(f"vignette=a={angle:.4f}")
-
-        bg_stages.append(f"ass=filename='{escaped_ass}':fontsdir='{escaped_fonts}'")
-        bg_chain = ",".join(bg_stages)
-
-        filter_complex = (
-            f"[0:v]{bg_chain}[bg_text];"
-            f"[2:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}[fg];"
-            f"[bg_text][fg]overlay=0:0"
+    if ken_burns and not is_video and not use_gradient:
+        total_frames = max(1, int(duration * fps))
+        vf_stages.append(
+            f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
+            f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+            f":d=1:s={res_w}x{res_h}:fps={fps}"
         )
+
+    if bg_blur and float(bg_blur) > 0:
+        vf_stages.append(f"gblur=sigma={float(bg_blur)}")
+    if bg_dim and float(bg_dim) > 0:
+        vf_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
+    if grain and float(grain) > 0:
+        vf_stages.append(f"noise=alls={int(float(grain))}:allf=t")
+    if vignette_strength and float(vignette_strength) > 0:
+        angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
+        vf_stages.append(f"vignette=a={angle:.4f}")
+
+    vf_stages.append(f"ass=filename='{escaped_ass}':fontsdir='{escaped_fonts}'")
+    vf_chain = ",".join(vf_stages)
+
+    has_complex = mask_subject or (overlay_v_idx != -1) or use_intro
+
+    if has_complex:
+        filter_parts = []
+        filter_parts.append(f"[0:v]{vf_chain}[v_temp]")
+        curr_v = "[v_temp]"
+
+        if mask_subject:
+            filter_parts.append(f"[{mask_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}[fg]")
+            filter_parts.append(f"{curr_v}[fg]overlay=0:0[v_masked]")
+            curr_v = "[v_masked]"
+
         if overlay_v_idx != -1:
-            filter_complex += f"[v_base];[{overlay_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuva420p[ovrl];[v_base][ovrl]blend=all_mode='{overlay_mode}':all_opacity={overlay_opacity}[v]"
-        else:
-            filter_complex += "[v]"
+            filter_parts.append(f"[{overlay_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuva420p[ovrl]")
+            filter_parts.append(f"{curr_v}[ovrl]blend=all_mode='{overlay_mode}':all_opacity={overlay_opacity}[v_overlay]")
+            curr_v = "[v_overlay]"
+
+        if use_intro:
+            filter_parts.append(f"[{intro_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuv420p[intro_v]")
+            filter_parts.append(f"{curr_v}[intro_v]overlay=enable='lt(t,10.01)'[v_intro]")
+            curr_v = "[v_intro]"
+
+        filter_complex = ";".join(filter_parts)
 
         cmd.extend([
             "-filter_complex", filter_complex,
-            "-map", "[v]",
+            "-map", curr_v,
             "-map", "1:a:0",
             "-c:v", vcodec,
             "-pix_fmt", "yuv420p",
@@ -285,61 +316,19 @@ def create_video_ffmpeg(image_path, audio_path, lyrics_data, output_path, durati
             output_path
         ])
     else:
-        # Single video filter chain
-        vf_stages = []
-        if not use_gradient:
-            vf_stages.append(f"scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h}")
-
-        if ken_burns and not is_video and not use_gradient:
-            total_frames = max(1, int(duration * fps))
-            vf_stages.append(
-                f"zoompan=z='min(1+0.18*on/{total_frames},1.18)'"
-                f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-                f":d=1:s={res_w}x{res_h}:fps={fps}"
-            )
-
-        if bg_blur and float(bg_blur) > 0:
-            vf_stages.append(f"gblur=sigma={float(bg_blur)}")
-        if bg_dim and float(bg_dim) > 0:
-            vf_stages.append(f"drawbox=x=0:y=0:w=iw:h=ih:t=fill:color=black@{min(float(bg_dim), 0.85)}")
-        if grain and float(grain) > 0:
-            vf_stages.append(f"noise=alls={int(float(grain))}:allf=t")
-        if vignette_strength and float(vignette_strength) > 0:
-            angle = min(float(vignette_strength), 1.0) * 0.7854  # up to PI/4
-            vf_stages.append(f"vignette=a={angle:.4f}")
-
-        vf_stages.append(f"ass=filename='{escaped_ass}':fontsdir='{escaped_fonts}'")
-        vf_chain = ",".join(vf_stages)
-
-        if overlay_v_idx != -1:
-            filter_complex = f"[0:v]{vf_chain}[v_base];[{overlay_v_idx}:v]scale={res_w}:{res_h}:force_original_aspect_ratio=increase,crop={res_w}:{res_h},format=yuva420p[ovrl];[v_base][ovrl]blend=all_mode='{overlay_mode}':all_opacity={overlay_opacity}[v]"
-            cmd.extend([
-                "-filter_complex", filter_complex,
-                "-map", "[v]",
-                "-map", "1:a:0",
-                "-c:v", vcodec,
-                "-pix_fmt", "yuv420p",
-                "-preset", "ultrafast" if quality == "draft" else "fast",
-                "-threads", "0",
-                "-b:v", "1M" if quality == "draft" else "3M",
-                "-c:a", "aac",
-                "-t", str(duration),
-                output_path
-            ])
-        else:
-            cmd.extend([
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-vf", vf_chain,
-                "-c:v", vcodec,
-                "-pix_fmt", "yuv420p",
-                "-preset", "ultrafast" if quality == "draft" else "fast",
-                "-threads", "0",
-                "-b:v", "1M" if quality == "draft" else "3M",
-                "-c:a", "aac",
-                "-t", str(duration),
-                output_path
-            ])
+        cmd.extend([
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-vf", vf_chain,
+            "-c:v", vcodec,
+            "-pix_fmt", "yuv420p",
+            "-preset", "ultrafast" if quality == "draft" else "fast",
+            "-threads", "0",
+            "-b:v", "1M" if quality == "draft" else "3M",
+            "-c:a", "aac",
+            "-t", str(duration),
+            output_path
+        ])
     
     print(f"Executing: {' '.join(cmd)}")
     

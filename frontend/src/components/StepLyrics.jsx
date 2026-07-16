@@ -53,7 +53,21 @@ export default function StepLyrics({
   bgFile,
   isPreviewing,
   previewProgress,
-  previewStage
+  previewStage,
+  introMode, setIntroMode,
+  introText, setIntroText,
+  introVideoFile, setIntroVideoFile,
+  layoutTheme, setLayoutTheme,
+  paperskyBgMode, setPaperskyBgMode,
+  paperskyAtmosphere, setPaperskyAtmosphere,
+  paperskyCaption, setPaperskyCaption,
+  paperskyCustomBgFile, setPaperskyCustomBgFile,
+  paperskyCustomBgUrl, setPaperskyCustomBgUrl,
+  paperskyFont, setPaperskyFont,
+  paperskyFontSize, setPaperskyFontSize,
+  paperskyFontColor, setPaperskyFontColor,
+  paperskyPlacement, setPaperskyPlacement,
+  paperskyTextMode, setPaperskyTextMode
 }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFont, setActiveFont] = useState(null)
@@ -299,9 +313,13 @@ export default function StepLyrics({
 
   useEffect(() => {
     if (bgFile) {
-      const url = URL.createObjectURL(bgFile)
-      setBgUrl(url)
-      return () => URL.revokeObjectURL(url)
+      if (typeof bgFile === 'string') {
+        setBgUrl(bgFile)
+      } else {
+        const url = URL.createObjectURL(bgFile)
+        setBgUrl(url)
+        return () => URL.revokeObjectURL(url)
+      }
     }
   }, [bgFile])
 
@@ -315,7 +333,7 @@ export default function StepLyrics({
       const ms = parseInt(match[3])
       const timeInSec = mins * 60 + secs + ms / (match[3].length === 3 ? 1000 : 100)
       // Adjust time for speed, trim, and offset. Note: trimStart affects the relative position of lyrics to the audio.
-      const adjustedTime = Math.max(0, (timeInSec / speed) - trimStart + lyricOffset)
+      const adjustedTime = Math.max(0, (timeInSec - trimStart + lyricOffset) / speed)
       
       // If we trimmed the audio, we might want to skip lyrics that fall before the trim window or after the trim window.
       // But we just render them since they are offscreen or don't trigger. 
@@ -475,7 +493,7 @@ export default function StepLyrics({
     if (!audio) return
     const playheadTime = audio.currentTime
     
-    const originalSec = (playheadTime + trimStart - lyricOffset) * speed
+    const originalSec = playheadTime * speed + trimStart - lyricOffset
     if (originalSec < 0) return
 
     const lines = (lyrics || '').split('\n')
@@ -671,9 +689,126 @@ export default function StepLyrics({
   return (
     <Box>
       <Box mb={4}>
-        <Typography variant="h4" fontWeight="bold" gutterBottom>Lyrics</Typography>
-        <Typography color="text.secondary">Search, paste, or edit synchronized lyrics — then preview them against your mastered audio</Typography>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>Style & Lyrics</Typography>
+        <Typography color="text.secondary">Configure the visual layout, background, and synchronized lyrics for your composition.</Typography>
       </Box>
+
+      {/* Layout Theme Toggle */}
+      <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 2, border: 1, borderColor: 'primary.main', bgcolor: 'background.paper' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Layout Theme</Typography>
+        <ToggleButtonGroup
+          value={layoutTheme}
+          exclusive
+          onChange={(e, newVal) => { if (newVal) setLayoutTheme(newVal) }}
+          fullWidth
+          sx={{ mb: 0 }}
+        >
+          <ToggleButton value="lyric_video">Lyric Video (Standard)</ToggleButton>
+          <ToggleButton value="papersky">Paper Sky (Cinematic Polaroid)</ToggleButton>
+        </ToggleButtonGroup>
+      </Paper>
+
+      {layoutTheme === 'papersky' && (
+        <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          <Typography variant="h6" fontWeight="bold" gutterBottom>Paper Sky Settings</Typography>
+          <Typography variant="body2" color="text.secondary" mb={3}>
+            The Paper Sky layout places your uploaded media inside a beautiful cinematic polaroid drop animation. No lyrics will be displayed.
+          </Typography>
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Background Mode</Typography>
+            <Select size="small" value={paperskyBgMode} onChange={e => setPaperskyBgMode(e.target.value)}>
+              <MenuItem value="memory">Memory (Generated from media)</MenuItem>
+              <MenuItem value="atmosphere">Atmosphere (Premium presets)</MenuItem>
+              <MenuItem value="custom">Custom Image (Upload your own)</MenuItem>
+            </Select>
+          </FormControl>
+
+          {paperskyBgMode === 'atmosphere' && (
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Atmosphere Asset</Typography>
+              <Select size="small" value={paperskyAtmosphere} onChange={e => setPaperskyAtmosphere(e.target.value)}>
+                <MenuItem value="Blue Hour">Blue Hour</MenuItem>
+                <MenuItem value="Rain Letter">Rain Letter</MenuItem>
+                <MenuItem value="Cinema Noir">Cinema Noir</MenuItem>
+                <MenuItem value="Quiet Ocean">Quiet Ocean</MenuItem>
+                <MenuItem value="Morning Paper">Morning Paper</MenuItem>
+                <MenuItem value="Forest Echo">Forest Echo</MenuItem>
+                <MenuItem value="Autumn Light">Autumn Light</MenuItem>
+                <MenuItem value="Moonlight">Moonlight</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
+          {paperskyBgMode === 'custom' && (
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>Custom Background Image</Typography>
+              <Button variant="outlined" component="label" sx={{ justifyContent: 'flex-start' }}>
+                {paperskyCustomBgFile ? paperskyCustomBgFile.name : 'Upload Background Image...'}
+                <input type="file" hidden accept="image/*" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setPaperskyCustomBgFile(e.target.files[0])
+                    setPaperskyCustomBgUrl(URL.createObjectURL(e.target.files[0]))
+                  }
+                }} />
+              </Button>
+            </FormControl>
+          )}
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Polaroid Typography</Typography>
+            <Select size="small" value={paperskyFont || 'Pacifico'} onChange={e => setPaperskyFont(e.target.value)}>
+              <MenuItem value="Pacifico">Genty (Premium Retro Script)</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Font Size</Typography>
+            <Slider 
+              value={paperskyFontSize || 42} 
+              onChange={(_, val) => setPaperskyFontSize(val)} 
+              min={20} max={100} 
+            />
+          </Box>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Font Color</Typography>
+            <input type="color" value={paperskyFontColor || '#F6F4EF'} onChange={e => setPaperskyFontColor(e.target.value)} style={{ width: '100%', height: '40px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+          </Box>
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Placement</Typography>
+            <Select size="small" value={paperskyPlacement || 'bottom-center'} onChange={e => setPaperskyPlacement(e.target.value)}>
+              <MenuItem value="bottom-left">Bottom Left</MenuItem>
+              <MenuItem value="bottom-center">Bottom Center</MenuItem>
+              <MenuItem value="top-left">Top Left</MenuItem>
+              <MenuItem value="top-center">Top Center</MenuItem>
+              <MenuItem value="center">Center</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Song Title</Typography>
+            <TextField 
+              size="small" 
+              value={songTitle} 
+              onChange={e => setSongTitle(e.target.value)} 
+              placeholder="e.g. Skyfall"
+            />
+          </FormControl>
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>Polaroid Caption (Bottom White Space)</Typography>
+            <TextField 
+              size="small" 
+              value={paperskyCaption} 
+              onChange={e => setPaperskyCaption(e.target.value)} 
+              placeholder="e.g. Nostalgia"
+            />
+          </FormControl>
+        </Paper>
+      )}
+
+      <>
 
       {isPreviewing && (
         <Paper elevation={0} sx={{ p: 3, mb: 3, border: 1, borderColor: "primary.main", bgcolor: "background.paper", borderRadius: 2 }}>
@@ -693,14 +828,14 @@ export default function StepLyrics({
         </Alert>
       )}
 
-      {!previewAudioUrl && (
+      {!previewAudioUrl && layoutTheme !== 'papersky' && (
         <Alert severity="info" sx={{ mb: 3 }}>
           To preview lyrics sync, go back to Step 2 and render an audio preview first.
         </Alert>
       )}
 
       {/* Audio + Lyrics Sync Preview (Moved to Top) */}
-      {previewAudioUrl && parsedLines.length > 0 && (
+      {((previewAudioUrl && parsedLines.length > 0) || layoutTheme === 'papersky') && (
         <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={3}>
             Live Preview
@@ -763,6 +898,26 @@ export default function StepLyrics({
 
               {/* Background Media */}
               {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
+                if (layoutTheme === 'papersky') {
+                  if (paperskyBgMode === 'atmosphere') {
+                     const mapping = {
+                        "Blue Hour": "bg_02.jpg", "Rain Letter": "bg_03.jpg",
+                        "Cinema Noir": "bg_04.jpg", "Quiet Ocean": "bg_05.jpg",
+                        "Morning Paper": "bg_07.jpg", "Forest Echo": "bg_08.jpg",
+                        "Autumn Light": "bg_10.jpg", "Moonlight": "bg_11.jpg"
+                     }
+                     const asset = mapping[paperskyAtmosphere] || "bg_02.jpg"
+                     return <img src={`${API}/assets/backgrounds/${asset}`} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, zIndex: 1 }} />
+                  } else if (paperskyBgMode === 'custom' && paperskyCustomBgUrl) {
+                     return <img src={paperskyCustomBgUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, zIndex: 1 }} />
+                  } else {
+                     const isVid = bgFile?.type?.startsWith('video/')
+                     const mediaStyle = { width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: 'blur(25px)', transform: 'scale(1.1)', zIndex: 1 }
+                     return isVid
+                       ? <video src={bgUrl} autoPlay loop muted style={mediaStyle} onClick={handlePreviewClick} />
+                       : <img src={bgUrl} style={mediaStyle} onClick={handlePreviewClick} />
+                  }
+                }
                 const isVid = bgFile?.type?.startsWith('video/')
                 const blurPx = isPickingColor ? 0 : (bgMode === 'gradient' ? 45 : bgBlur * 0.45)
                 const baseScale = isPickingColor ? 1 : (kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5))
@@ -806,7 +961,73 @@ export default function StepLyrics({
               {/* Visual Safe Area & Coordinate Mapping (Hidden during color pick) */}
               {!isPickingColor && (
                 <Box sx={{position: 'absolute', inset: 0, zIndex: 5}}>
-                  {parsedLines.length > 0 && (
+                  {layoutTheme === 'papersky' ? (
+                    <Box sx={{
+                      position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                      width: '65%', aspectRatio: '800/960', bgcolor: '#FCFAF6',
+                      borderRadius: '3%', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', zIndex: 10,
+                      overflow: 'hidden'
+                    }}>
+                       <Box sx={{ 
+                         position: 'absolute', top: '5.2%', left: '6.25%', width: '87.5%', height: '72.9%',
+                         bgcolor: '#111', borderRadius: '2%', border: '1px solid rgba(0,0,0,0.05)', overflow: 'hidden' 
+                       }}>
+                         {bgUrl && (() => {
+                           const isVid = bgFile?.type?.startsWith('video/')
+                           return isVid 
+                             ? <video src={bgUrl} autoPlay loop muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                             : <img src={bgUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                         })()}
+                         
+                         {/* Text overlay INSIDE the image */}
+                         <Box sx={{
+                           position: 'absolute', 
+                           inset: 0,
+                           p: '8%',
+                           display: 'flex', 
+                           flexDirection: 'column', 
+                           alignItems: paperskyPlacement?.includes('left') ? 'flex-start' : 'center', 
+                           justifyContent: paperskyPlacement?.includes('top') ? 'flex-start' : paperskyPlacement === 'center' ? 'center' : 'flex-end',
+                           textShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                           opacity: 0.95
+                         }}>
+                           <Typography variant="body1" sx={{ 
+                             textAlign: paperskyPlacement?.includes('left') ? 'left' : 'center', 
+                             fontFamily: "'Pacifico', cursive",
+                             fontSize: `${(paperskyFontSize || 42) * 0.13}cqi`, 
+                             lineHeight: 1.1, fontWeight: 500, 
+                             letterSpacing: '0.02em',
+                             color: paperskyFontColor || '#F6F4EF'
+                           }}>
+                             {songTitle || 'Song Title'}
+                           </Typography>
+                         </Box>
+                       </Box>
+                       <Box sx={{
+                         position: 'absolute', top: '78.1%', left: 0, width: '100%', height: '21.9%',
+                         display: 'flex', alignItems: 'center', justifyContent: 'center', px: '8%'
+                       }}>
+                         <Typography variant="body1" sx={{ 
+                           textAlign: 'center', 
+                           fontFamily: "'Kalam', cursive",
+                           fontSize: '5.5cqi', lineHeight: 1.1, fontWeight: 400, 
+                           letterSpacing: '0.08em',
+                           color: (() => {
+                             switch (paperskyAtmosphere) {
+                               case 'Blue Hour': case 'Rain Letter': case 'Quiet Ocean': return '#596D8A'
+                               case 'Forest Echo': return '#6B7464'
+                               case 'Autumn Light': return '#6A5147'
+                               case 'Moonlight': return '#756C83'
+                               case 'Cinema Noir': return '#3B3B3B'
+                               default: return '#44423E'
+                             }
+                           })()
+                         }}>
+                           {paperskyCaption}
+                         </Typography>
+                       </Box>
+                    </Box>
+                  ) : parsedLines.length > 0 && (
                     <Box sx={{
                       position: 'absolute',
                       top: `${posY}%`,
@@ -1032,6 +1253,8 @@ export default function StepLyrics({
             </Button>
           </Box>
         </Box>
+
+
         
         <Box mb={4} p={2} border={1} borderColor="divider" borderRadius={2} bgcolor="background.default">
           <Typography variant="body2" color="text.secondary" gutterBottom>Lyric Delay / Offset</Typography>
@@ -1096,6 +1319,64 @@ export default function StepLyrics({
               sx={{ mt: 1 }}
             />
           )}
+        </Box>
+
+        <Box mb={4} p={2} border={1} borderColor={introMode !== 'none' ? "primary.main" : "divider"} borderRadius={2} bgcolor={introMode !== 'none' ? "rgba(255,122,0,0.05)" : "background.default"}>
+          <Box mb={2}>
+            <Typography variant="subtitle2" color={introMode !== 'none' ? "primary" : "text.primary"} fontWeight="bold">Intro Video Animation</Typography>
+            <Typography variant="caption" color="text.secondary">Overlay a premium intro scene (e.g. Polaroid Card animation) at the start</Typography>
+          </Box>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Intro Animation Style</InputLabel>
+                <Select
+                  value={introMode}
+                  onChange={(e) => setIntroMode(e.target.value)}
+                  label="Intro Animation Style"
+                >
+                  <MenuItem value="none">None</MenuItem>
+                  <MenuItem value="papersky">Polaroid Intro (PaperSky)</MenuItem>
+                  <MenuItem value="custom">Custom Intro Upload</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            {introMode === 'papersky' && (
+              <Grid item xs={12} sm={6}>
+                <TextField 
+                  fullWidth
+                  label="Polaroid Card Text"
+                  value={introText}
+                  onChange={(e) => setIntroText(e.target.value)}
+                  size="small"
+                  placeholder="e.g. Custom Polaroid Text"
+                />
+              </Grid>
+            )}
+            {introMode === 'custom' && (
+              <Grid item xs={12} sm={6}>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  fullWidth
+                  size="small"
+                  sx={{ height: '40px' }}
+                >
+                  {introVideoFile ? introVideoFile.name : 'Upload Custom Video (.mp4)'}
+                  <input
+                    type="file"
+                    accept="video/mp4"
+                    hidden
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setIntroVideoFile(e.target.files[0])
+                      }
+                    }}
+                  />
+                </Button>
+              </Grid>
+            )}
+          </Grid>
         </Box>
 
         <Grid container spacing={4} mb={4}>
@@ -1184,6 +1465,96 @@ export default function StepLyrics({
             </FormControl>
           </Grid>
         </Grid>
+        {layoutTheme !== 'papersky' && (
+          <>
+            <Grid container spacing={4} mb={4}>
+              <Grid item xs={12} sm={6}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Position X</Typography>
+                  <Typography variant="body2" fontWeight="bold">{posX}%</Typography>
+                </Box>
+                <Slider min={0} max={100} value={posX} onChange={(e, val) => setPosX(val)} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Position Y</Typography>
+                  <Typography variant="body2" fontWeight="bold">{posY}%</Typography>
+                </Box>
+                <Slider min={0} max={100} value={posY} onChange={(e, val) => setPosY(val)} />
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={4}>
+              <Grid item xs={12}>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                  <Typography variant="body2" color="text.secondary" fontWeight="bold">Magic Color Suggester (AI)</Typography>
+                  <Box display="flex" gap={1.5}>
+                    <Button size="small" variant="contained" color="secondary" onClick={handleAutoStyle} disabled={isAutoStyling}>
+                      {isAutoStyling ? <CircularProgress size={18} /> : '✨ Auto-Style 1-Click'}
+                    </Button>
+                    <Button size="small" variant="outlined" color="primary" onClick={handleSuggestColors} disabled={isSuggestingColors}>
+                      {isSuggestingColors ? <CircularProgress size={18} /> : 'Suggest Palettes'}
+                    </Button>
+                  </Box>
+                </Box>
+                {suggestedPalettes && (
+                  <Box display="flex" gap={1.5} flexWrap="wrap" mb={2}>
+                    {suggestedPalettes.map(p => (
+                      <Chip 
+                        key={p.name}
+                        label={`${p.name}${p.wcag_rating ? ` (${p.wcag_rating})` : ''}`}
+                        onClick={() => { setFontColor(p.font_color); setStrokeColor(p.stroke_color); setBloomColor(p.glow_color || p.stroke_color); setBloomRadius(15) }}
+                        sx={{ bgcolor: p.font_color, color: p.stroke_color, fontWeight: 'bold', border: `2px solid ${p.stroke_color}`, cursor: 'pointer' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Grid>
+              <Grid item xs={6} sm={2}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>Text</Typography>
+                <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} style={{ width: '100%', height: 42, cursor: 'pointer', border: '1px solid #444', borderRadius: 6 }} />
+              </Grid>
+              <Grid item xs={6} sm={2}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>Stroke</Typography>
+                <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} style={{ width: '100%', height: 42, cursor: 'pointer', border: '1px solid #444', borderRadius: 6 }} />
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>Glow Color</Typography>
+                <input type="color" value={bloomColor} onChange={(e) => setBloomColor(e.target.value)} style={{ width: '100%', height: 42, cursor: 'pointer', border: '1px solid #444', borderRadius: 6 }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Glow Radius (Bloom)</Typography>
+                  <Typography variant="body2" fontWeight="bold">{bloomRadius}px</Typography>
+                </Box>
+                <Slider min={0} max={40} value={bloomRadius} onChange={(e, val) => setBloomRadius(val)} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Stroke Width</Typography>
+                  <Typography variant="body2" fontWeight="bold">{strokeWidth}px</Typography>
+                </Box>
+                <Slider min={0} max={10} value={strokeWidth} onChange={(e, val) => setStrokeWidth(val)} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2" color="text.secondary">Shadow Offset</Typography>
+                  <Typography variant="body2" fontWeight="bold">{shadowOffset}px</Typography>
+                </Box>
+                <Slider min={0} max={20} value={shadowOffset} onChange={(e, val) => setShadowOffset(val)} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Format</InputLabel>
+                  <Select value={textTransform} label="Format" onChange={(e) => setTextTransform(e.target.value)}>
+                    <MenuItem value="uppercase">ALL CAPS</MenuItem>
+                    <MenuItem value="none">Normal</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </>
+        )}
       </Paper>
 
       {/* Background Style */}
@@ -1435,6 +1806,7 @@ export default function StepLyrics({
           </Button>
         </Box>
       </Paper>
+      </>
     </Box>
   )
 }

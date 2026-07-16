@@ -27,26 +27,50 @@ export default function StepExport({
   maskSubject, subjectImagePath,
   renderQuality, setRenderQuality,
   renderEngine, setRenderEngine,
-  setStatus
+  setStatus,
+  skipAudioProcessing,
+  introMode, introText, introVideoFile,
+  layoutTheme,
+  paperskyBgMode,
+  paperskyAtmosphere,
+  paperskyCaption,
+  paperskyFont,
+  paperskyFontSize,
+  paperskyFontColor,
+  paperskyPlacement,
+  paperskyTextMode,
+  paperskyCustomBgFile
 }) {
-  const [fileName, setFileName] = useState(songTitle ? `${songTitle} (Slowed + Reverb)` : 'lyric_video')
+  const [fileName, setFileName] = useState(() => {
+    if (songTitle) {
+      return skipAudioProcessing ? songTitle : `${songTitle} (Slowed + Reverb)`
+    }
+    return 'lyric_video'
+  })
   const [isRendering, setIsRendering] = useState(false)
   const [renderProgress, setRenderProgress] = useState(0)
   const [renderStage, setRenderStage] = useState('')
   const [downloadUrl, setDownloadUrl] = useState('')
+  const [renders, setRenders] = useState([])
 
   const handleRender = async () => {
     if (!audioPath || !bgFile) return
     setIsRendering(true)
     setStatus('Rendering video...')
     setDownloadUrl('')
+    if (!audioPath) return setStatus("Error: Audio is required")
+    if (layoutTheme === 'papersky' && !bgFile) return setStatus("Error: Paper Sky requires a background media file. Please upload an image or video in Step 1.")
 
+    setStatus('Rendering...')
+    setRenderProgress(0)
+    setRenderStage('')
+    
     const jobId = Math.random().toString(36).substring(2, 10)
 
     const formData = new FormData()
     formData.append('audio_path', audioPath)
     formData.append('job_id', jobId)
-    formData.append('raw_lrc', lyrics)
+    formData.append('raw_lrc', lyrics || '')
     formData.append('speed', speed)
     formData.append('reverb_room_size', reverbRoom)
     formData.append('reverb_mix', reverbMix)
@@ -94,6 +118,28 @@ export default function StepExport({
     formData.append('subject_image_path', subjectImagePath || '')
     if (gradientColors) formData.append('gradient_colors', JSON.stringify(gradientColors))
     formData.append('file_name', fileName.replace(/[^a-zA-Z0-9_\-() ]/g, ''))
+    formData.append('skip_audio_processing', skipAudioProcessing ? 'true' : 'false')
+    formData.append('intro_mode', introMode)
+    formData.append('intro_text', introText)
+    if (introMode === 'custom' && introVideoFile) {
+      formData.append('intro_video', introVideoFile)
+    }
+    formData.append('layout_theme', layoutTheme || 'lyric_video')
+    if (layoutTheme === 'papersky') {
+      formData.append('papersky_bg_mode', paperskyBgMode || 'memory')
+      formData.append('papersky_atmosphere', paperskyAtmosphere || 'Blue Hour')
+      formData.append('papersky_caption', paperskyCaption || '')
+      formData.append('papersky_song_title', songTitle || '')
+      formData.append('papersky_artist', '')
+      formData.append('papersky_font', paperskyFont || 'Pacifico')
+      formData.append('papersky_font_size', paperskyFontSize || 42)
+      formData.append('papersky_font_color', paperskyFontColor || '#F6F4EF')
+      formData.append('papersky_placement', paperskyPlacement || 'bottom-center')
+      formData.append('papersky_text_mode', paperskyTextMode || 'lyrics')
+      if (paperskyCustomBgFile) {
+        formData.append('papersky_bg_image', paperskyCustomBgFile)
+      }
+    }
     formData.append('image', bgFile)
 
     setRenderProgress(0)
@@ -113,6 +159,11 @@ export default function StepExport({
       const data = await res.json()
       if (data.status === 'success') {
         setDownloadUrl(`${API}${data.download_url}`)
+        if (data.renders) {
+          setRenders(data.renders)
+        } else {
+          setRenders([{ aspect_ratio: aspectRatio, download_url: data.download_url, video_url: data.video_url }])
+        }
         setStatus('')
         setRenderProgress(100)
       } else {
@@ -147,10 +198,10 @@ export default function StepExport({
         </Typography>
         <Grid container spacing={4}>
           <Grid item xs={12} sm={6}>
-            <SummaryItem label="Speed" value={`${speed}x`} />
-            <SummaryItem label="Reverb Mix" value={`${reverbMix}%`} />
-            <SummaryItem label="Room Size" value={`${Math.round(reverbRoom * 100)}%`} />
-            <SummaryItem label="8D Audio" value={enable8D ? 'On' : 'Off'} />
+            <SummaryItem label="Speed" value={skipAudioProcessing ? '1.0x (Original)' : `${speed}x`} />
+            <SummaryItem label="Reverb Mix" value={skipAudioProcessing ? 'Bypassed' : `${reverbMix}%`} />
+            <SummaryItem label="Room Size" value={skipAudioProcessing ? 'Bypassed' : `${Math.round(reverbRoom * 100)}%`} />
+            <SummaryItem label="8D Audio" value={skipAudioProcessing ? 'Bypassed' : (enable8D ? 'On' : 'Off')} />
             <SummaryItem label="Format" value={aspectRatio === '9:16' ? 'Vertical 9:16' : 'Landscape 16:9'} />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -225,25 +276,37 @@ export default function StepExport({
         </Box>
       )}
 
-      {downloadUrl && (
-        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", p: 4, borderRadius: 2, textAlign: 'center', bgcolor: 'success.dark', color: 'success.contrastText' }}>
-          <Typography variant="h5" fontWeight="bold" gutterBottom>
-            Video Rendered Successfully
+      {renders.length > 0 && (
+        <Paper elevation={0} sx={{ border: 1, borderColor: "divider", p: 4, borderRadius: 2, bgcolor: 'background.paper', mb: 3 }}>
+          <Typography variant="h5" fontWeight="bold" textAlign="center" gutterBottom color="success.main" sx={{ mb: 4 }}>
+            Video(s) Rendered Successfully
           </Typography>
-          <video 
-            controls 
-            src={downloadUrl} 
-            style={{ width: '100%', maxHeight: '400px', borderRadius: '8px', marginBottom: '20px', background: '#000' }} 
-          />
-          <Button 
-            variant="contained" 
-            color="inherit" 
-            href={downloadUrl} 
-            download 
-            sx={{ color: 'black', fontWeight: 'bold' }}
-          >
-            Download Video
-          </Button>
+          <Grid container spacing={3}>
+            {renders.map((render, idx) => (
+              <Grid item xs={12} md={renders.length > 1 ? 6 : 12} key={idx}>
+                <Paper elevation={2} sx={{ p: 3, borderRadius: 2, bgcolor: 'background.default', display: 'flex', flexDirection: 'column', alignItems: 'center', border: 1, borderColor: 'divider' }}>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom color="primary">
+                    Format: {render.aspect_ratio === '9:16' ? 'Vertical 9:16 (Shorts/Reels)' : 'Landscape 16:9'}
+                  </Typography>
+                  <video 
+                    controls 
+                    src={`${API}${render.download_url}`} 
+                    style={{ width: '100%', maxHeight: '350px', borderRadius: '8px', marginBottom: '15px', background: '#000' }} 
+                  />
+                  <Button 
+                    variant="contained" 
+                    color="primary" 
+                    href={`${API}${render.download_url}`} 
+                    download 
+                    fullWidth
+                    sx={{ fontWeight: 'bold' }}
+                  >
+                    Download ({render.aspect_ratio})
+                  </Button>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
         </Paper>
       )}
     </Box>

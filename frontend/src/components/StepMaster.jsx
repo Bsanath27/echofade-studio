@@ -25,6 +25,7 @@ export default function StepMaster({
   orbitTime, setOrbitTime,
   orbitDucking, setOrbitDucking,
   orbitWidening, setOrbitWidening,
+  skipAudioProcessing, setSkipAudioProcessing,
   trimStart, setTrimStart,
   trimEnd, setTrimEnd,
   previewAudioUrl, setPreviewAudioUrl,
@@ -48,6 +49,7 @@ export default function StepMaster({
     setSpeed(v.speed); setReverbRoom(v.reverbRoom); setReverbMix(v.reverbMix)
     setBassBoost(v.bassBoost); setTrebleBoost(v.trebleBoost); setWarmth(v.warmth)
     setEnable8D(v.enable8D); setOrbitTime(v.orbitTime); setOrbitDucking(v.orbitDucking); setOrbitWidening(v.orbitWidening)
+    setSkipAudioProcessing(!!v.skipAudioProcessing)
     setActivePreset(preset.name)
   }
 
@@ -91,8 +93,37 @@ export default function StepMaster({
         )}
       </Box>
 
+      {/* Skip Audio Processing Switch */}
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper", p: 3, mb: 3, borderRadius: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box>
+            <Typography variant="subtitle1" fontWeight="bold">Keep Original Audio</Typography>
+            <Typography variant="body2" color="text.secondary">Bypass slowed, reverb, EQ, and 8D effects to keep the audio source exactly as is</Typography>
+          </Box>
+          <Switch 
+            checked={skipAudioProcessing} 
+            onChange={(e) => {
+              setSkipAudioProcessing(e.target.checked)
+              if (e.target.checked) {
+                // reset values to defaults if skipping audio processing
+                setSpeed(1.0)
+                setReverbRoom(0.0)
+                setReverbMix(0)
+                setBassBoost(0.0)
+                setTrebleBoost(0.0)
+                setWarmth(0.0)
+                setEnable8D(false)
+                setActivePreset('Original Audio (No Changes)')
+              } else {
+                setActivePreset(null)
+              }
+            }} 
+          />
+        </Box>
+      </Paper>
+
       {/* Speed & Reverb */}
-      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2, opacity: skipAudioProcessing ? 0.5 : 1, pointerEvents: skipAudioProcessing ? 'none' : 'auto' }}>
         <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
           Speed & Reverb
         </Typography>
@@ -133,7 +164,7 @@ export default function StepMaster({
       </Paper>
 
       {/* EQ */}
-      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2, opacity: skipAudioProcessing ? 0.5 : 1, pointerEvents: skipAudioProcessing ? 'none' : 'auto' }}>
         <Typography variant="subtitle1" fontWeight="bold" gutterBottom borderBottom={1} borderColor="divider" pb={1} mb={2}>
           Equalizer
         </Typography>
@@ -156,7 +187,7 @@ export default function StepMaster({
       </Paper>
 
       {/* 8D */}
-      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2 }}>
+      <Paper elevation={0} sx={{ border: 1, borderColor: "divider", bgcolor: "background.paper",  p: 3, mb: 3, borderRadius: 2, opacity: skipAudioProcessing ? 0.5 : 1, pointerEvents: skipAudioProcessing ? 'none' : 'auto' }}>
         <Box display="flex" justifyContent="space-between" alignItems="center">
           <Typography variant="subtitle1" fontWeight="bold">Spatial 8D Audio</Typography>
           <FormControlLabel

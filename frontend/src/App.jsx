@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, Component } from 'react'
 import { ThemeProvider, createTheme, CssBaseline, Box, Drawer, Typography, ToggleButtonGroup, ToggleButton, Button, Alert } from '@mui/material'
 
 import Navigation from './components/Navigation'
@@ -10,6 +10,41 @@ import StepExport from './components/StepExport'
 import BatchGrid from './components/BatchGrid'
 import Downloader from './components/Downloader'
 import RotoscopeStudio from './components/RotoscopeStudio'
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null, errorInfo: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo })
+    console.error("ErrorBoundary caught an error", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box p={4} border={1} borderColor="error.main" borderRadius={2} bgcolor="rgba(255,0,0,0.05)">
+          <Typography variant="h5" color="error" fontWeight="bold" gutterBottom>
+            Something went wrong rendering this step.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {this.state.error && this.state.error.toString()}
+          </Typography>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem', color: '#ff7777', background: '#220000', padding: '15px', borderRadius: '4px', textAlign: 'left' }}>
+            {this.state.errorInfo && this.state.errorInfo.componentStack}
+          </pre>
+        </Box>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const darkTheme = createTheme({
   palette: {
@@ -60,10 +95,20 @@ function App() {
   // Shared state
   const [audioPath, setAudioPath] = useState('')
   const [songTitle, setSongTitle] = useState('')
+  const [artistName, setArtistName] = useState('')
   const [bgFile, setBgFile] = useState(null)
   const [aspectRatio, setAspectRatio] = useState('16:9')
   const [lyrics, setLyrics] = useState('')
   const [previewAudioUrl, setPreviewAudioUrl] = useState('')
+  const isVideoBg = typeof bgFile === 'string'
+    ? (bgFile.toLowerCase().endsWith('.mp4') || bgFile.toLowerCase().endsWith('.mov') || bgFile.toLowerCase().endsWith('.webm') || bgFile.toLowerCase().endsWith('.gif'))
+    : bgFile && (
+        (bgFile.type && bgFile.type.startsWith('video/')) ||
+        (bgFile.name && bgFile.name.toLowerCase().endsWith('.mp4')) ||
+        (bgFile.name && bgFile.name.toLowerCase().endsWith('.mov')) ||
+        (bgFile.name && bgFile.name.toLowerCase().endsWith('.webm')) ||
+        (bgFile.name && bgFile.name.toLowerCase().endsWith('.gif'))
+      );
   
   // Typography
   const [fontFamily, setFontFamily] = useState('Montserrat')
@@ -94,8 +139,24 @@ function App() {
   // Timing and Intro
   const [lyricOffset, setLyricOffset] = useState(0.5)
   const [showIntro, setShowIntro] = useState(false)
+  const [introMode, setIntroMode] = useState('none')
+  const [introText, setIntroText] = useState('')
+  const [introVideoFile, setIntroVideoFile] = useState(null)
   const [trimStart, setTrimStart] = useState(0)
   const [trimEnd, setTrimEnd] = useState(0)
+  
+  // Layout Theme
+  const [layoutTheme, setLayoutTheme] = useState('lyric_video') // 'lyric_video' | 'papersky'
+  const [paperskyBgMode, setPaperskyBgMode] = useState('memory') // 'memory' | 'atmosphere'
+  const [paperskyAtmosphere, setPaperskyAtmosphere] = useState('Blue Hour')
+  const [paperskyCaption, setPaperskyCaption] = useState('Nostalgia')
+  const [paperskyFont, setPaperskyFont] = useState('Pacifico')
+  const [paperskyFontSize, setPaperskyFontSize] = useState(42)
+  const [paperskyFontColor, setPaperskyFontColor] = useState('#F6F4EF')
+  const [paperskyPlacement, setPaperskyPlacement] = useState('bottom-center')
+  const [paperskyTextMode, setPaperskyTextMode] = useState('lyrics')
+  const [paperskyCustomBgFile, setPaperskyCustomBgFile] = useState(null)
+  const [paperskyCustomBgUrl, setPaperskyCustomBgUrl] = useState('')
 
   // Background style (Phase 1: cinematic backgrounds)
   const [bgMode, setBgMode] = useState('image')
@@ -119,6 +180,7 @@ function App() {
   const [orbitTime, setOrbitTime] = useState(20.0)
   const [orbitDucking, setOrbitDucking] = useState(4.0)
   const [orbitWidening, setOrbitWidening] = useState(15.0)
+  const [skipAudioProcessing, setSkipAudioProcessing] = useState(false)
 
   // Rendering Options
   const [renderQuality, setRenderQuality] = useState('final')
@@ -133,7 +195,7 @@ function App() {
   const getMasteringParamsString = () => {
     return JSON.stringify({
       audioPath, speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth,
-      enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd
+      enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd, skipAudioProcessing
     })
   }
 
@@ -171,6 +233,7 @@ function App() {
     formData.append('orbit_widening', orbitWidening / 100.0)
     formData.append('trim_start', trimStart || 0)
     formData.append('trim_end', trimEnd || 0)
+    formData.append('skip_audio_processing', skipAudioProcessing ? 'true' : 'false')
     try {
       const ts = Date.now()
       const res = await fetch(`${API}/api/preview-audio`, { method: 'POST', body: formData })
@@ -196,7 +259,7 @@ function App() {
         handlePreview()
       }
     }
-  }, [currentStep, audioPath, speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth, enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd])
+  }, [currentStep, audioPath, speed, reverbRoom, reverbMix, bassBoost, trebleBoost, warmth, enable8D, orbitTime, orbitDucking, orbitWidening, trimStart, trimEnd, skipAudioProcessing])
 
   // Compute which steps are complete
   const completedSteps = useMemo(() => {
@@ -219,11 +282,15 @@ function App() {
   }
 
   const goNext = () => {
-    if (canGoNext() && currentStep < 6) setCurrentStep(currentStep + 1)
+    if (canGoNext() && currentStep < 6) {
+      setCurrentStep(currentStep + 1)
+    }
   }
 
   const goBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1)
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
   }
 
   const renderStep = () => {
@@ -232,6 +299,7 @@ function App() {
         return <StepImport
           audioPath={audioPath} setAudioPath={setAudioPath}
           songTitle={songTitle} setSongTitle={setSongTitle}
+          artistName={artistName} setArtistName={setArtistName}
           bgFile={bgFile} setBgFile={setBgFile}
           aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
           setStatus={setStatus}
@@ -249,6 +317,7 @@ function App() {
           orbitTime={orbitTime} setOrbitTime={setOrbitTime}
           orbitDucking={orbitDucking} setOrbitDucking={setOrbitDucking}
           orbitWidening={orbitWidening} setOrbitWidening={setOrbitWidening}
+          skipAudioProcessing={skipAudioProcessing} setSkipAudioProcessing={setSkipAudioProcessing}
           previewAudioUrl={previewAudioUrl} setPreviewAudioUrl={setPreviewAudioUrl}
           setStatus={setStatus}
           isPreviewing={isPreviewing} setIsPreviewing={setIsPreviewing}
@@ -283,6 +352,7 @@ function App() {
           trimEnd={trimEnd} setTrimEnd={setTrimEnd}
           showIntro={showIntro} setShowIntro={setShowIntro}
           songTitle={songTitle} setSongTitle={setSongTitle}
+          artistName={artistName} setArtistName={setArtistName}
           canvasMode={canvasMode} setCanvasMode={setCanvasMode}
           aspectRatio={aspectRatio}
           bloomColor={bloomColor} setBloomColor={setBloomColor}
@@ -306,6 +376,26 @@ function App() {
           isPreviewing={isPreviewing}
           previewProgress={previewProgress}
           previewStage={previewStage}
+          introMode={introMode} setIntroMode={setIntroMode}
+          introText={introText} setIntroText={setIntroText}
+          introVideoFile={introVideoFile} setIntroVideoFile={setIntroVideoFile}
+          layoutTheme={layoutTheme}
+          setLayoutTheme={setLayoutTheme}
+          paperskyBgMode={paperskyBgMode}
+          setPaperskyBgMode={setPaperskyBgMode}
+          paperskyAtmosphere={paperskyAtmosphere}
+          setPaperskyAtmosphere={setPaperskyAtmosphere}
+          paperskyCaption={paperskyCaption}
+          setPaperskyCaption={setPaperskyCaption}
+          paperskyFont={paperskyFont} setPaperskyFont={setPaperskyFont}
+          paperskyFontSize={paperskyFontSize} setPaperskyFontSize={setPaperskyFontSize}
+          paperskyFontColor={paperskyFontColor} setPaperskyFontColor={setPaperskyFontColor}
+          paperskyPlacement={paperskyPlacement} setPaperskyPlacement={setPaperskyPlacement}
+          paperskyTextMode={paperskyTextMode} setPaperskyTextMode={setPaperskyTextMode}
+          paperskyCustomBgFile={paperskyCustomBgFile}
+          setPaperskyCustomBgFile={setPaperskyCustomBgFile}
+          paperskyCustomBgUrl={paperskyCustomBgUrl}
+          setPaperskyCustomBgUrl={setPaperskyCustomBgUrl}
         />
       case 5:
         return <RotoscopeStudio 
@@ -348,7 +438,7 @@ function App() {
         />
       case 6:
         return <StepExport
-          audioPath={audioPath} bgFile={bgFile} lyrics={lyrics} songTitle={songTitle}
+          audioPath={audioPath} bgFile={bgFile} lyrics={lyrics} songTitle={songTitle} artistName={artistName}
           speed={speed} reverbRoom={reverbRoom} reverbMix={reverbMix}
           bassBoost={bassBoost} trebleBoost={trebleBoost} warmth={warmth}
           enable8D={enable8D} orbitTime={orbitTime} orbitDucking={orbitDucking} orbitWidening={orbitWidening}
@@ -365,6 +455,18 @@ function App() {
           renderQuality={renderQuality} setRenderQuality={setRenderQuality}
           renderEngine={renderEngine} setRenderEngine={setRenderEngine}
           setStatus={setStatus}
+          skipAudioProcessing={skipAudioProcessing}
+          introMode={introMode} introText={introText} introVideoFile={introVideoFile}
+          layoutTheme={layoutTheme}
+          paperskyBgMode={paperskyBgMode}
+          paperskyAtmosphere={paperskyAtmosphere}
+          paperskyCaption={paperskyCaption}
+          paperskyFont={paperskyFont}
+          paperskyFontSize={paperskyFontSize}
+          paperskyFontColor={paperskyFontColor}
+          paperskyPlacement={paperskyPlacement}
+          paperskyTextMode={paperskyTextMode}
+          paperskyCustomBgFile={paperskyCustomBgFile}
         />
       default:
         return null
@@ -419,7 +521,9 @@ function App() {
                   <Alert severity="info" sx={{ mb: 3 }}>{status}</Alert>
                 )}
 
-                {renderStep()}
+                <ErrorBoundary>
+                  {renderStep()}
+                </ErrorBoundary>
 
                 {/* Bottom Nav */}
                 <Box mt={4} pt={3} borderTop={1} borderColor="divider" display="flex" justifyContent="space-between">

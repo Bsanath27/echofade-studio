@@ -38,6 +38,11 @@ export const BG_GRADIENTS = [
 // Audio presets shared by the Master Audio wizard step and the Batch grid.
 export const PRESETS = [
   {
+    name: 'Original Audio (No Changes)',
+    desc: 'Keep the audio exactly as is, with no slowed/reverb or 8D effects',
+    values: { speed: 1.0, reverbRoom: 0.0, reverbMix: 0, bassBoost: 0.0, trebleBoost: 0.0, warmth: 0.0, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 10, skipAudioProcessing: true }
+  },
+  {
     name: 'Classic Slowed+Reverb',
     desc: 'The YouTube standard — gentle slowdown, medium reverb, warm bass',
     values: { speed: 0.85, reverbRoom: 0.55, reverbMix: 28, bassBoost: 2.5, trebleBoost: -1, warmth: 0.25, enable8D: false, orbitTime: 20, orbitDucking: 4, orbitWidening: 15 }

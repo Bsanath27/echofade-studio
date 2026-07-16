@@ -181,7 +181,7 @@ def generate_subject_mask_detailed(image_path: str, output_path: str = None, poi
                         nx = min(w - 1, max(0, int(pt[0])))
                         ny = min(h - 1, max(0, int(pt[1])))
                         Y, X = np.ogrid[:h, :w]
-                        dist_from_center = np.sqrt((X - nx)**2 + (Y - py)**2)
+                        dist_from_center = np.sqrt((X - nx)**2 + (Y - ny)**2)
                         selected_mask[dist_from_center < 50] = 0
                     final_alpha_np = (alpha_np * (selected_mask / 255.0)).astype(np.uint8)
                 else:

@@ -85,7 +85,39 @@ def create_video_remotion(
                 for w in lyric["words"]
             ]
         scaled_lyrics.append(item)
+    aspect_ratio = kwargs.get("aspect_ratio", "16:9")
+    quality = kwargs.get("quality", "final")
+    if aspect_ratio == "9:16":
+        width, height = (1080, 1920) if quality == "final" else (480, 854)
+    else:
+        width, height = (1920, 1080) if quality == "final" else (854, 480)
 
+    # Subject mask URL/data-uri resolution
+    import base64
+    subject_image_path = kwargs.get("subject_image_path")
+    if server_active and subject_image_path:
+        subject_rel_path = os.path.relpath(subject_image_path, temp_dir)
+        subject_url = f"http://127.0.0.1:8000/files/{urllib.parse.quote(subject_rel_path)}"
+    elif subject_image_path and os.path.exists(subject_image_path):
+        ext = subject_image_path.lower().split('.')[-1]
+        mime = "image/png" if ext in ["png", "webp"] else "image/jpeg"
+        with open(subject_image_path, "rb") as f:
+            subject_url = f"data:{mime};base64,{base64.b64encode(f.read()).decode('utf-8')}"
+    else:
+        subject_url = ""
+
+    # Overlay video URL/data-uri resolution
+    overlay_video_path = kwargs.get("overlay_video_path")
+    if server_active and overlay_video_path:
+        overlay_rel_path = os.path.relpath(overlay_video_path, temp_dir)
+        overlay_url = f"http://127.0.0.1:8000/files/{urllib.parse.quote(overlay_rel_path)}"
+    elif overlay_video_path and os.path.exists(overlay_video_path):
+        ext = overlay_video_path.lower().split('.')[-1]
+        mime = "video/mp4"
+        with open(overlay_video_path, "rb") as f:
+            overlay_url = f"data:{mime};base64,{base64.b64encode(f.read()).decode('utf-8')}"
+    else:
+        overlay_url = ""
 
     props = {
         "audioUrl": audio_url,
@@ -93,6 +125,8 @@ def create_video_remotion(
         "lyrics": scaled_lyrics,
         "theme": "dark",
         "durationInFrames": duration_frames,
+        "width": width,
+        "height": height,
         "lyricPreset": kwargs.get("lyric_preset", "line-pop"),
         "beatBounce": kwargs.get("beat_bounce", False),
         "particles": kwargs.get("particles", False),
@@ -112,6 +146,17 @@ def create_video_remotion(
         "strokeColor": kwargs.get("stroke_color", "#000000"),
         "shadowOffset": kwargs.get("shadow_offset", 4),
         "lyricStyle": kwargs.get("lyric_style", "single"),
+        "bgMode": kwargs.get("bg_mode", "image"),
+        "bgBlur": kwargs.get("bg_blur", 0.0),
+        "bgDim": kwargs.get("bg_dim", 0.0),
+        "gradientColors": kwargs.get("gradient_colors"),
+        "grain": kwargs.get("grain", 0.0),
+        "vignetteStrength": kwargs.get("vignette_strength", 0.0),
+        "maskSubject": kwargs.get("mask_subject", False),
+        "subjectImageUrl": subject_url,
+        "overlayUrl": overlay_url,
+        "overlayOpacity": kwargs.get("overlay_opacity", 0.4),
+        "overlayMode": kwargs.get("overlay_mode", "screen"),
     }
 
     with open(props_path, 'w') as f:

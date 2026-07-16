@@ -22,6 +22,7 @@ def create_video(
     font_size: int = 60,
     quality: str = "final",
     aspect_ratio: str = "16:9",
+    intro_video_path: str = None,
     logger = None
 ):
     """
@@ -55,6 +56,14 @@ def create_video(
         base_image = base_image.resized(height=res_h, width=res_w)
     
     clips = [base_image]
+
+    if intro_video_path and os.path.exists(intro_video_path):
+        intro_clip = VideoFileClip(intro_video_path)
+        intro_clip = intro_clip.resized(height=res_h, width=res_w)\
+                               .with_start(0)\
+                               .with_duration(10.01)\
+                               .with_position(("center", "center"))
+        clips.append(intro_clip)
 
     # 2. Text Overlays (Lyrics)
     print("Generating text clips with shadows and speed synchronization...")

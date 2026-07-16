@@ -2,8 +2,10 @@ import { Composition, getInputProps } from 'remotion';
 import { LyricVideo } from './LyricVideo';
 
 export const RemotionRoot: React.FC = () => {
-  const props = (getInputProps() || {}) as { durationInFrames?: number };
+  const props = (getInputProps() || {}) as { durationInFrames?: number; width?: number; height?: number };
   const durationInFrames = props.durationInFrames ? Number(props.durationInFrames) : 1800;
+  const width = props.width ? Number(props.width) : 1920;
+  const height = props.height ? Number(props.height) : 1080;
   
   return (
     <>
@@ -12,8 +14,8 @@ export const RemotionRoot: React.FC = () => {
         component={LyricVideo}
         durationInFrames={durationInFrames}
         fps={30}
-        width={1920}
-        height={1080}
+        width={width}
+        height={height}
         defaultProps={{
           audioUrl: '',
           bgUrl: '',
@@ -35,7 +37,18 @@ export const RemotionRoot: React.FC = () => {
           bloomColor: '',
           bloomRadius: 0,
           beatShake: false,
-          chromaticAberration: false
+          chromaticAberration: false,
+          bgMode: 'image',
+          bgBlur: 0,
+          bgDim: 0,
+          gradientColors: null,
+          grain: 0,
+          vignetteStrength: 0,
+          maskSubject: false,
+          subjectImageUrl: '',
+          overlayUrl: '',
+          overlayOpacity: 0.4,
+          overlayMode: 'screen'
         }}
       />
     </>

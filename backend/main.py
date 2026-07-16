@@ -34,7 +34,12 @@ WHISPER_MODEL = None
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,6 +64,19 @@ def prune_old_jobs():
             shutil.rmtree(stale, ignore_errors=True)
     except Exception as e:
         print(f"Job pruning failed (non-fatal): {e}")
+
+
+def validate_path_in_temp(path: str, must_exist: bool = True) -> str:
+    """Validate that a client-supplied path is strictly within the TEMP_DIR boundary."""
+    if not path:
+        return path
+    abs_temp = os.path.abspath(TEMP_DIR)
+    abs_path = os.path.abspath(path)
+    if not (abs_path.startswith(abs_temp + os.path.sep) or abs_path == abs_temp):
+        raise ValueError(f"Access Denied: Path '{path}' is outside the temporary directory boundary.")
+    if must_exist and not os.path.exists(abs_path):
+        raise FileNotFoundError(f"File not found: '{path}'")
+    return abs_path
 
 
 class RenderLogger(ProgressBarLogger):
@@ -86,6 +104,7 @@ class RenderLogger(ProgressBarLogger):
                     pass
 
 app.mount("/files", StaticFiles(directory=TEMP_DIR), name="files")
+app.mount("/assets", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "..", "assets")), name="assets")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -168,10 +187,83 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
         progress_start=0,
         progress_end=40,
         trim_start=trim_start,
-        trim_end=trim_end
+        trim_end=trim_end,
+        skip_audio_processing=s.get('skip_audio_processing', False)
     )
 
-    # 2. Video renders (15-100%)
+    # 2. Pre-compose Papersky/Polaroid intro video overlay if enabled
+    papersky_intro_path = None
+    if s.get('intro_mode') in ['papersky', 'custom']:
+        intro_src = s.get('intro_video_path')
+        if not intro_src or not os.path.exists(intro_src):
+            # Fallback to the default papersky MP4 asset
+            intro_src = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), "assets", "backgrounds", "intro reel",
+                "Motion_graphic_overlay_transpare…_202607151914.mp4"
+            ))
+            
+        if os.path.exists(intro_src):
+            papersky_intro_path = os.path.join(job_dir, "papersky_intro_composite.mp4")
+            
+            # Map font to standalone Bold .ttf files dynamically (same as video_composer.py)
+            montserrat_path = os.path.join(os.path.dirname(__file__), 'Montserrat-Bold.ttf')
+            import platform
+            system = platform.system()
+            if system == "Darwin":
+                font_map = {
+                    "Montserrat": montserrat_path,
+                    "Arial": "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if os.path.exists("/System/Library/Fonts/Supplemental/Arial Bold.ttf") else "/Library/Fonts/Arial Bold.ttf",
+                    "Helvetica Neue": "/System/Library/Fonts/HelveticaNeue.ttc",
+                    "Impact": "/System/Library/Fonts/Supplemental/Impact.ttf" if os.path.exists("/System/Library/Fonts/Supplemental/Impact.ttf") else "/Library/Fonts/Impact.ttf",
+                    "Avenir Next": "/System/Library/Fonts/Avenir Next.ttc",
+                    "Futura": "/System/Library/Fonts/Futura.ttc",
+                    "Didot": "/System/Library/Fonts/Didot.ttc",
+                    "Baskerville": "/System/Library/Fonts/Baskerville.ttc"
+                }
+            elif system == "Windows":
+                font_map = {
+                    "Montserrat": montserrat_path,
+                    "Arial": "C:\\Windows\\Fonts\\arialbd.ttf",
+                    "Helvetica Neue": "C:\\Windows\\Fonts\\trebucbd.ttf",
+                    "Impact": "C:\\Windows\\Fonts\\impact.ttf",
+                    "Avenir Next": "C:\\Windows\\Fonts\\arialbd.ttf",
+                    "Futura": "C:\\Windows\\Fonts\\arialbd.ttf",
+                    "Didot": "C:\\Windows\\Fonts\\georgiab.ttf",
+                    "Baskerville": "C:\\Windows\\Fonts\\georgiab.ttf"
+                }
+            else:
+                font_map = {
+                    "Montserrat": montserrat_path,
+                    "Arial": "Arial-Bold",
+                    "Helvetica Neue": "Trebuchet-MS-Bold",
+                    "Impact": "Impact",
+                    "Avenir Next": "Arial-Bold",
+                    "Futura": "Arial-Bold",
+                    "Didot": "Georgia-Bold",
+                    "Baskerville": "Georgia-Bold"
+                }
+            font_path = font_map.get(s['font_family'], font_map["Montserrat"])
+            
+            try:
+                from papersky_composer import compose_papersky_intro
+                font_col = "#262626"
+                compose_papersky_intro(
+                    intro_video_path=intro_src,
+                    bg_image_path=image_path,
+                    text=s.get('intro_text', ''),
+                    output_path=papersky_intro_path,
+                    font_path=font_path,
+                    font_size=34,
+                    font_color=font_col,
+                    quality=s['quality']
+                )
+                s['composed_intro_video_path'] = papersky_intro_path
+                print(f"Pre-composited Papersky intro overlay to {papersky_intro_path}")
+            except Exception as e:
+                print(f"Failed to pre-compose Papersky intro: {e}")
+                s['composed_intro_video_path'] = None
+
+    # 3. Video renders (15-100%)
     aspect_ratios = [ar.strip() for ar in str(s.get('aspect_ratio', '16:9')).split(',') if ar.strip()]
     if s.get('canvas_mode', False):
         aspect_ratios = ['9:16']
@@ -207,7 +299,17 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
             show_intro=s.get('show_intro', False), song_title=s.get('song_title', ''),
         )
 
-        if s['engine'] == "ffmpeg":
+        if s.get('layout_theme') == 'papersky':
+            from papersky_engine import create_papersky_video
+            create_papersky_video(
+                media_path=image_path,
+                audio_path=processed_audio_path,
+                output_path=output_path,
+                settings=s,
+                progress_file=progress_file,
+                lyrics_data=lyrics_data
+            )
+        elif s['engine'] == "ffmpeg":
             if s.get('canvas_mode'):
                 composer_kwargs['duration'] = 8.0 # Force 8s loop
             from ffmpeg_engine import create_video_ffmpeg
@@ -221,6 +323,7 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
                 overlay_video_path=s.get('overlay_video_path'),
                 overlay_opacity=s.get('overlay_opacity', 0.4),
                 overlay_mode=s.get('overlay_mode', 'screen'),
+                intro_video_path=s.get('composed_intro_video_path'),
                 progress_file=progress_file, progress_start=start_prog, progress_end=end_prog,
             )
         elif s['engine'] == "remotion":
@@ -237,7 +340,11 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
                 progress_file=progress_file, progress_start=start_prog, progress_end=end_prog,
             )
         else:
-            create_video(**composer_kwargs, logger=RenderLogger(progress_file, progress_start=start_prog, progress_end=end_prog))
+            create_video(
+                **composer_kwargs,
+                intro_video_path=s.get('composed_intro_video_path'),
+                logger=RenderLogger(progress_file, progress_start=start_prog, progress_end=end_prog)
+            )
             
         rendered_files.append((output_path, final_filename))
 
@@ -248,6 +355,7 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
     ROOT_OUTPUTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "outputs"))
     os.makedirs(ROOT_OUTPUTS_DIR, exist_ok=True)
     
+    renders = []
     returned_urls = {}
     for i, (out_path, f_name) in enumerate(rendered_files):
         final_output_path = os.path.join(ROOT_OUTPUTS_DIR, f_name)
@@ -258,11 +366,17 @@ def execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, p
         shutil.copyfile(out_path, final_output_path)
         
         url_path = quote(f"jobs/{job_id}/{os.path.basename(out_path)}", safe='/')
+        ar = aspect_ratios[i] if i < len(aspect_ratios) else "16:9"
+        renders.append({
+            "aspect_ratio": ar,
+            "video_url": f"/files/{url_path}",
+            "download_url": f"/api/download/{url_path}"
+        })
         if i == 0:
             returned_urls = {"video_url": f"/files/{url_path}", "download_url": f"/api/download/{url_path}"}
 
     prune_old_jobs()
-    return {"status": "success", **returned_urls}
+    return {"status": "success", "renders": renders, **returned_urls}
 
 
 # ── Batch render queue (sequential worker) ──
@@ -289,9 +403,13 @@ def _batch_worker():
                 continue
 
             title = info.get("title", "Untitled")
-            _update_job(job_id, title=title, status="fetching_lyrics", stage="Fetching lyrics")
-            raw_lrc, _ = extract_lyrics(info["title"], info["artist"])
-            raw_lrc = raw_lrc or ""
+            raw_lrc = spec.get("raw_lrc")
+            if not raw_lrc or not raw_lrc.strip():
+                _update_job(job_id, title=title, status="fetching_lyrics", stage="Fetching lyrics")
+                raw_lrc, _ = extract_lyrics(info["title"], info["artist"])
+                raw_lrc = raw_lrc or ""
+            else:
+                _update_job(job_id, title=title)
 
             job_dir = os.path.join(JOBS_DIR, job_id)
             os.makedirs(job_dir, exist_ok=True)
@@ -302,7 +420,8 @@ def _batch_worker():
 
             _update_job(job_id, status="rendering", stage="Rendering", progress=0, has_lyrics=bool(raw_lrc))
             result = execute_render(job_id, job_dir, info["filepath"], raw_lrc, spec["image_path"], settings, progress_file)
-            _update_job(job_id, status="done", stage="Done", progress=100, **result)
+            result_cleaned = {k: v for k, v in result.items() if k != "status"}
+            _update_job(job_id, status="done", stage="Done", progress=100, **result_cleaned)
         except Exception as e:
             _update_job(job_id, status="error", stage="Error", error=str(e))
         finally:
@@ -392,8 +511,10 @@ async def upload_audio(audio: UploadFile = File(...)):
 @app.get("/api/audio-waveform")
 async def audio_waveform(audio_path: str):
     """Generate downsampled peak amplitude data for visual waveform rendering."""
-    if not audio_path or not os.path.exists(audio_path):
-        return JSONResponse({"status": "error", "message": "Audio file not found"}, status_code=400)
+    try:
+        audio_path = validate_path_in_temp(audio_path, must_exist=True)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
     try:
         from pydub import AudioSegment
         import numpy as np
@@ -496,8 +617,14 @@ def preview_audio(
     orbit_ducking: float = Form(4.0),
     orbit_widening: float = Form(0.15),
     trim_start: float = Form(0.0),
-    trim_end: float = Form(0.0)
+    trim_end: float = Form(0.0),
+    skip_audio_processing: bool = Form(False)
 ):
+    try:
+        audio_path = validate_path_in_temp(audio_path, must_exist=True)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
+
     if not job_id:
         job_id = uuid.uuid4().hex[:8]
     print("Generating audio preview...")
@@ -514,7 +641,7 @@ def preview_audio(
         reverb_mix=reverb_mix / 100.0,
         bass_boost_db=bass_boost_db,
         treble_boost_db=treble_boost_db,
-        vintage_warmth=vintage_warmth / 100.0,
+        vintage_warmth=vintage_warmth,
         enable_8d=enable_8d,
         orbit_time=orbit_time,
         orbit_ducking=orbit_ducking,
@@ -524,7 +651,8 @@ def preview_audio(
         trim_end=trim_end,
         progress_file=progress_file,
         progress_start=0,
-        progress_end=100
+        progress_end=100,
+        skip_audio_processing=skip_audio_processing
     )
     with open(progress_file, 'w') as f:
         json.dump({"progress": 100, "stage": "done"}, f)
@@ -554,11 +682,10 @@ async def generate_mask(
             with open(input_path, "wb") as buffer:
                 shutil.copyfileobj(image.file, buffer)
         elif image_path:
-            full_path = os.path.realpath(image_path)
-            temp_root = os.path.realpath(TEMP_DIR)
-            if not full_path.startswith(temp_root + os.sep) and not os.path.exists(image_path):
-                return JSONResponse({"status": "error", "message": "Invalid or non-existent image path"}, status_code=400)
-            input_path = image_path
+            try:
+                input_path = validate_path_in_temp(image_path, must_exist=True)
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
         else:
             return JSONResponse({"status": "error", "message": "No image file or image_path provided"}, status_code=400)
 
@@ -609,11 +736,10 @@ async def generate_chroma_mask_endpoint(
             with open(input_path, "wb") as buffer:
                 shutil.copyfileobj(image.file, buffer)
         elif image_path:
-            full_path = os.path.realpath(image_path)
-            temp_root = os.path.realpath(TEMP_DIR)
-            if not full_path.startswith(temp_root + os.sep) and not os.path.exists(image_path):
-                return JSONResponse({"status": "error", "message": "Invalid or non-existent image path"}, status_code=400)
-            input_path = image_path
+            try:
+                input_path = validate_path_in_temp(image_path, must_exist=True)
+            except Exception as e:
+                return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
         else:
             return JSONResponse({"status": "error", "message": "No image file or image_path provided"}, status_code=400)
 
@@ -669,13 +795,10 @@ async def generate_lyrics(audio_path: str):
     lrclib lyrics and aren't double-adjusted by the speed change later.
     Extracts word-level timestamps using Whisper's word_timestamps=True.
     """
-    if not audio_path or not os.path.exists(audio_path):
-        return JSONResponse({"status": "error", "message": "No audio found. Please import a track in Step 1 first!"}, status_code=400)
-
-    full_path = os.path.realpath(audio_path)
-    temp_root = os.path.realpath(TEMP_DIR)
-    if not full_path.startswith(temp_root + os.sep):
-        return JSONResponse({"status": "error", "message": "Invalid audio path."}, status_code=400)
+    try:
+        full_path = validate_path_in_temp(audio_path, must_exist=True)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
 
     try:
         global WHISPER_MODEL
@@ -725,7 +848,7 @@ async def generate_lyrics(audio_path: str):
 @app.post("/api/render")
 def render_video(
     audio_path: str = Form(...),
-    raw_lrc: str = Form(...),
+    raw_lrc: str = Form(""),
     speed: float = Form(1.0),
     reverb_room_size: float = Form(0.5),
     reverb_mix: float = Form(0.2),
@@ -756,6 +879,16 @@ def render_video(
     grain: float = Form(0.0),
     vignette_strength: float = Form(0.0),
     gradient_colors: str = Form(None),
+    layout_theme: str = Form("lyric_video"),
+    papersky_bg_mode: str = Form("memory"),
+    papersky_atmosphere: str = Form("Blue Hour"),
+    papersky_caption: str = Form(""),
+    papersky_song_title: str = Form(""),
+    papersky_artist: str = Form(""),
+    papersky_font: str = Form(""),
+    papersky_font_size: int = Form(42),
+    papersky_font_color: str = Form("#F6F4EF"),
+    papersky_placement: str = Form("bottom-center"),
     file_name: str = Form("final_lyric_video"),
     beat_bounce: bool = Form(False),
     particles: bool = Form(False),
@@ -776,8 +909,22 @@ def render_video(
     overlay_video_path: str = Form(None),
     overlay_opacity: float = Form(0.4),
     overlay_mode: str = Form("screen"),
-    image: UploadFile = File(...)
+    skip_audio_processing: bool = Form(False),
+    intro_mode: str = Form("none"),
+    intro_text: str = Form(""),
+    intro_video: UploadFile = File(None),
+    papersky_bg_image: UploadFile = File(None),
+    image: UploadFile = File(None)
 ):
+    try:
+        audio_path = validate_path_in_temp(audio_path, must_exist=True)
+        if subject_image_path:
+            subject_image_path = validate_path_in_temp(subject_image_path, must_exist=True)
+        if overlay_video_path:
+            overlay_video_path = validate_path_in_temp(overlay_video_path, must_exist=True)
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Path Validation Error: {str(e)}"}, status_code=400)
+
     try:
         if not job_id:
             job_id = uuid.uuid4().hex[:12]
@@ -789,10 +936,28 @@ def render_video(
             json.dump({"progress": 0, "stage": "starting"}, f)
 
         # Save uploaded background into the job directory
-        image_ext = image.filename.split(".")[-1].lower()
-        image_path = os.path.join(job_dir, f"bg_image.{image_ext}")
-        with open(image_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
+        image_path = None
+        if image and hasattr(image, 'filename') and image.filename and image.filename != "null":
+            image_ext = image.filename.split(".")[-1].lower()
+            image_path = os.path.join(job_dir, f"bg_image.{image_ext}")
+            with open(image_path, "wb") as buffer:
+                shutil.copyfileobj(image.file, buffer)
+
+        # Save custom intro video if uploaded
+        intro_video_path = None
+        if intro_mode == "custom" and intro_video and intro_video.filename:
+            intro_ext = intro_video.filename.split(".")[-1].lower()
+            intro_video_path = os.path.join(job_dir, f"custom_intro.{intro_ext}")
+            with open(intro_video_path, "wb") as buffer:
+                shutil.copyfileobj(intro_video.file, buffer)
+                
+        # Save custom papersky background if uploaded
+        papersky_bg_image_path = None
+        if papersky_bg_image and hasattr(papersky_bg_image, 'filename') and papersky_bg_image.filename and papersky_bg_image.filename != "null":
+            papersky_bg_ext = papersky_bg_image.filename.split(".")[-1].lower()
+            papersky_bg_image_path = os.path.join(job_dir, f"papersky_custom_bg.{papersky_bg_ext}")
+            with open(papersky_bg_image_path, "wb") as buffer:
+                shutil.copyfileobj(papersky_bg_image.file, buffer)
 
         # Convert frontend units to apply_audio_effects-native units at the boundary:
         # reverb_mix arrives 0-100, vintage_warmth arrives 0-1, orbit_widening arrives 0-1.
@@ -806,6 +971,13 @@ def render_video(
             lyric_style=lyric_style, aspect_ratio=aspect_ratio, bg_mode=bg_mode, bg_blur=bg_blur,
             bg_dim=bg_dim, ken_burns=ken_burns, grain=grain, vignette_strength=vignette_strength,
             gradient_colors=json.loads(gradient_colors) if gradient_colors else None,
+            layout_theme=layout_theme, papersky_bg_mode=papersky_bg_mode,
+            papersky_atmosphere=papersky_atmosphere, papersky_caption=papersky_caption,
+            papersky_song_title=papersky_song_title,
+            papersky_artist=papersky_artist, papersky_font=papersky_font,
+            papersky_font_size=papersky_font_size, papersky_font_color=papersky_font_color,
+            papersky_placement=papersky_placement,
+            papersky_bg_image_path=papersky_bg_image_path,
             file_name=file_name, beat_bounce=beat_bounce, particles=particles,
             lyric_preset=lyric_preset, canvas_mode=canvas_mode,
             lyric_offset=lyric_offset, show_intro=show_intro, song_title=song_title,
@@ -813,7 +985,9 @@ def render_video(
             mask_subject=mask_subject, subject_image_path=subject_image_path,
             bloom_color=bloom_color, bloom_radius=bloom_radius, beat_shake=beat_shake,
             chromatic_aberration=chromatic_aberration, overlay_video_path=overlay_video_path,
-            overlay_opacity=overlay_opacity, overlay_mode=overlay_mode
+            overlay_opacity=overlay_opacity, overlay_mode=overlay_mode,
+            skip_audio_processing=skip_audio_processing,
+            intro_mode=intro_mode, intro_text=intro_text, intro_video_path=intro_video_path
         )
 
         result = execute_render(job_id, job_dir, audio_path, raw_lrc, image_path, settings, progress_file)
@@ -837,7 +1011,27 @@ async def batch_submit(
     quality: str = Form("final"),
     bg_style: str = Form("cinematic"),
     lyric_style: str = Form("single"),
-    image: UploadFile = File(...),
+    image: UploadFile = File(None),
+    papersky_bg_image: UploadFile = File(None),
+    raw_lrc: str = Form(None),
+    lyric_offset: float = Form(0.0),
+    pos_x: int = Form(50),
+    pos_y: int = Form(50),
+    trim_start: float = Form(0.0),
+    trim_end: float = Form(0.0),
+    font_family: str = Form("Montserrat"),
+    font_color: str = Form("#ffffff"),
+    font_size: int = Form(60),
+    text_transform: str = Form("uppercase"),
+    stroke_width: int = Form(2),
+    stroke_color: str = Form("#000000"),
+    shadow_offset: int = Form(4),
+    lyric_preset: str = Form("line-pop"),
+    bloom_color: str = Form(None),
+    bloom_radius: int = Form(0),
+    intro_mode: str = Form("none"),
+    intro_text: str = Form(""),
+    intro_video: UploadFile = File(None),
 ):
     job_id = uuid.uuid4().hex[:12]
     job_dir = os.path.join(JOBS_DIR, job_id)
@@ -848,21 +1042,33 @@ async def batch_submit(
     with open(image_path, "wb") as buffer:
         shutil.copyfileobj(image.file, buffer)
 
+    # Save custom intro video if uploaded
+    intro_video_path = None
+    if intro_mode == "custom" and intro_video and intro_video.filename:
+        intro_ext = intro_video.filename.split(".")[-1].lower()
+        intro_video_path = os.path.join(job_dir, f"custom_intro.{intro_ext}")
+        with open(intro_video_path, "wb") as buffer:
+            shutil.copyfileobj(intro_video.file, buffer)
+
     pv = json.loads(preset_values)
     bg = BATCH_BG_STYLES.get(bg_style, BATCH_BG_STYLES["cinematic"])
     settings = dict(
-        speed=pv["speed"], reverb_room_size=pv["reverbRoom"], reverb_mix=pv["reverbMix"] / 100.0,
-        bass_boost_db=pv["bassBoost"], treble_boost_db=pv["trebleBoost"], vintage_warmth=pv["warmth"],
-        enable_8d=pv["enable8D"], orbit_time=pv["orbitTime"], orbit_ducking=pv["orbitDucking"],
-        orbit_widening=pv["orbitWidening"] / 100.0,
-        font_family="Montserrat", font_color="#ffffff", pos_x=50, pos_y=50, text_transform="uppercase",
-        stroke_width=2, stroke_color="#000000", shadow_offset=4, font_size=60,
+        speed=pv.get("speed", 1.0), reverb_room_size=pv.get("reverbRoom", 0.0), reverb_mix=pv.get("reverbMix", 0.0) / 100.0,
+        bass_boost_db=pv.get("bassBoost", 0.0), treble_boost_db=pv.get("trebleBoost", 0.0), vintage_warmth=pv.get("warmth", 0.0),
+        enable_8d=pv.get("enable8D", False), orbit_time=pv.get("orbitTime", 20.0), orbit_ducking=pv.get("orbitDucking", 4.0),
+        orbit_widening=pv.get("orbitWidening", 15.0) / 100.0,
+        skip_audio_processing=pv.get("skipAudioProcessing", False),
+        font_family=font_family, font_color=font_color, pos_x=pos_x, pos_y=pos_y, text_transform=text_transform,
+        stroke_width=stroke_width, stroke_color=stroke_color, shadow_offset=shadow_offset, font_size=font_size,
         quality=quality, engine="ffmpeg", lyric_style=lyric_style, aspect_ratio=aspect_ratio,
+        lyric_offset=lyric_offset, trim_start=trim_start, trim_end=trim_end,
+        bloom_color=bloom_color, bloom_radius=bloom_radius, lyric_preset=lyric_preset,
+        intro_mode=intro_mode, intro_text=intro_text, intro_video_path=intro_video_path,
         **bg, file_name="lyric_video",
     )
 
     _update_job(job_id, status="queued", stage="Queued", progress=0, title=link, link=link)
-    BATCH_QUEUE.put({"job_id": job_id, "link": link, "image_path": image_path, "settings": settings})
+    BATCH_QUEUE.put({"job_id": job_id, "link": link, "image_path": image_path, "settings": settings, "raw_lrc": raw_lrc})
     return {"status": "success", "job_id": job_id}
 
 

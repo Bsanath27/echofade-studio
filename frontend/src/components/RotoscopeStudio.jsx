@@ -30,6 +30,7 @@ export default function RotoscopeStudio({
   beatShake,
   chromaticAberration,
   overlayVideoPath,
+  bgMode,
   bgBlur,
   bgDim,
   kenBurns,
@@ -79,13 +80,17 @@ export default function RotoscopeStudio({
   // Manage background URL
   useEffect(() => {
     if (bgFile) {
-      const url = URL.createObjectURL(bgFile)
-      setBgUrl(url)
-      setPoints([])
-      if (setSubjectOverlayUrl) {
-        setSubjectOverlayUrl('')
+      if (typeof bgFile === 'string') {
+        setBgUrl(bgFile)
+      } else {
+        const url = URL.createObjectURL(bgFile)
+        setBgUrl(url)
+        setPoints([])
+        if (setSubjectOverlayUrl) {
+          setSubjectOverlayUrl('')
+        }
+        return () => URL.revokeObjectURL(url)
       }
-      return () => URL.revokeObjectURL(url)
     }
   }, [bgFile])
 
@@ -667,7 +672,9 @@ export default function RotoscopeStudio({
 
                 {/* Background Media */}
                 {bgUrl && !(bgMode === 'gradient' && gradientColors) && (() => {
-                  const isVid = bgFile?.type?.startsWith('video/') || bgFile?.name?.endsWith('.mp4') || bgFile?.name?.endsWith('.mov') || bgFile?.name?.endsWith('.webm') || bgFile?.name?.endsWith('.gif')
+                  const isVid = typeof bgFile === 'string'
+                    ? (bgFile.toLowerCase().endsWith('.mp4') || bgFile.toLowerCase().endsWith('.mov') || bgFile.toLowerCase().endsWith('.webm') || bgFile.toLowerCase().endsWith('.gif'))
+                    : (bgFile?.type?.startsWith('video/') || bgFile?.name?.endsWith('.mp4') || bgFile?.name?.endsWith('.mov') || bgFile?.name?.endsWith('.webm') || bgFile?.name?.endsWith('.gif'))
                   const blurPx = bgBlur * 0.45
                   const baseScale = kenBurns ? 1 : 1 + Math.min(blurPx / 40, 0.5)
                   const mediaStyle = {
