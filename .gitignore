@@ -37,3 +37,7 @@ remotion-renderer/remotion_test.log
 
 # MoviePy temporary files
 *TEMP_MPY_*
+
+# Large Model files
+*.onnx
+backend/models/*.onnx
